@@ -1,16 +1,18 @@
 import json
 import time
 import concurrent.futures
+import pandas as pd
 from tools.model_structs import SymptomBinary, SymptomClassification
 from tqdm import tqdm
+from typing import Union
 
-def prompter_factory(prompter_type, client, model, temperature=0):
+def prompter_factory(prompter_type: str, client: object, model: str, temperature: float = 0) -> Union['PrompterBinary', 'PrompterClassification']:
     """
     Factory function to create prompter objects based on the given prompter_type.
 
     Args:
         prompter_type (str): The type of prompter to create. Valid values are 'binary' and 'classification'.
-        client: The client object.
+        client(object): The client object.
         model (str): Link for the model, to be used by the client.
         temperature (float, optional): The temperature value for response generation. Defaults to 0.
 
@@ -41,7 +43,7 @@ class Prompter:
 
     """
 
-    def __init__(self, client, model, temperature):
+    def __init__(self, client: object, model: str, temperature: float) -> None:
         """
         Initializes a Prompter object.
 
@@ -57,7 +59,7 @@ class Prompter:
         self.model = model
         self.temperature = temperature
 
-    def generate(self, df, prompt, max_attempts=5):
+    def generate(self, df: pd.DataFrame, prompt: str, max_attempts: int = 5) -> pd.DataFrame:
             """
             Generates responses for each context in the given dataframe using the specified prompt.
 
@@ -84,7 +86,7 @@ class Prompter:
             #TODO: currently outputs a dict, should be pred only (handle both binary and classification)
             return df
 
-    def generate_single(self, context, prompt, max_attempts=5):
+    def generate_single(self, context: str, prompt: str, max_attempts: int = 5) -> dict:
         """
         Generates a response given a context and a prompt, with several attempts.
 
@@ -111,7 +113,7 @@ class Prompter:
                     print("Max attempts reached, handling failure...")
                     return None
 
-    def _generate(self, context, prompt):
+    def _generate(self, context: str, prompt: str) -> dict:
         """
         Generates a response given a context and a prompt.
 
@@ -151,7 +153,7 @@ class PrompterBinary(Prompter):
         __init__: Initializes a PrompterBinary object.
     """
 
-    def __init__(self, client, model, temperature=0):
+    def __init__(self, client: object, model: str, temperature: float = 0) -> None:
         super().__init__(client, model, temperature)
         with open("tools/binary.json", "r") as file:
             tool = json.load(file)
@@ -175,7 +177,7 @@ class PrompterClassification(Prompter):
         __init__: Initializes a PrompterClassification object.
     """
 
-    def __init__(self, client, model, temperature=0):
+    def __init__(self, client: object, model: str, temperature: float = 0) -> None:
         super().__init__(client, model, temperature)
         with open("tools/classification.json", "r") as file:
             tool = json.load(file)
