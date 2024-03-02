@@ -1,0 +1,17 @@
+[
+    {
+        "type": "function",
+        "function": {
+            "name": "symptom_binary",
+            "parameters": {
+            "type": "object",
+            "properties": {
+                "status": {
+                "type": "boolean"
+                }
+            },
+            "required": ["status"]
+            }
+        }
+    }
+]

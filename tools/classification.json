@@ -1,0 +1,83 @@
+[
+    {
+        "type": "function",
+        "function": {
+            "name": "symptom_classification",
+            "parameters": {
+            "type": "object",
+            "properties": {
+                "Anxiety": {
+                    "type": "boolean"  
+                },
+                "Concentration_Problems": {
+                    "type": "boolean"
+                },
+                "Constipation": {
+                    "type": "boolean"
+                },
+                "Cough": {
+                    "type": "boolean"
+                },
+                "Diarrhea": {
+                    "type": "boolean"
+                },
+                "Fatigue": {
+                    "type": "boolean"
+                },
+                "Fever": {
+                    "type": "boolean"
+                },
+                "Headache": {
+                    "type": "boolean"
+                },
+                "Nausea": {
+                    "type": "boolean"
+                },
+                "Numbness_and_Tingling": {
+                    "type": "boolean"
+                },
+                "Pain": {
+                    "type": "boolean"
+                },
+                "Poor_Appetite": {
+                    "type": "boolean"
+                },
+                "Rash": {
+                    "type": "boolean"
+                },
+                "Shortness_of_Breath": {
+                    "type": "boolean"
+                },
+                "Trouble_Drinking_Fluids": {
+                    "type": "boolean"
+                },
+                "Vomiting": {
+                    "type": "boolean"
+                },
+                "Other": {
+                    "type": "boolean"
+                }
+                },
+                "required": [
+                "Anxiety",
+                "Concentration_Problems",
+                "Constipation",
+                "Cough",
+                "Diarrhea",
+                "Fatigue",
+                "Fever",
+                "Headache",
+                "Nausea",
+                "Numbness_and_Tingling",
+                "Pain",
+                "Poor_Appetite",
+                "Rash",
+                "Shortness_of_Breath",
+                "Trouble_Drinking_Fluids",
+                "Vomiting",
+                "Other"
+                ]
+            }
+        }
+    }
+]
