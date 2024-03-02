@@ -15,7 +15,7 @@ class API:
 
     """
 
-    def __init__(self, api_key, base_url):
+    def __init__(self, api_key: str, base_url: str) -> None:
             """
             Initializes an instance of the API class.
 
@@ -29,7 +29,7 @@ class API:
             self.api_key = api_key
             self.base_url = base_url
 
-    def get_openai(self):
+    def get_openai(self) -> OpenAI:
         """
         Returns:
             An instance of the OpenAI class.
