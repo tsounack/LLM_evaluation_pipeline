@@ -1,10 +1,32 @@
 import json
 import time
 import concurrent.futures
+import numpy as np
 import pandas as pd
 from tools.model_structs import SymptomBinary, SymptomClassification
 from tqdm import tqdm
 from typing import Union
+
+def run_configurations(prompter_type: str, client: object, models: list[str], df: pd.DataFrame, prompt: str) -> dict:
+    """
+    Run configurations for prompter using the provided list of models.
+
+    Args:
+        prompter_type (str): The type of prompter. Valid values are 'binary' and 'classification'.
+        client (object): The client object.
+        models (list[str]): List of models.
+        df (pd.DataFrame): The DataFrame containing the context.
+        prompt (str): The prompt given to the model for output formatting.az
+
+    Returns:
+        dict: The results dictionary, using models as keys and results dataframes as values.
+    """
+    results = {}
+    for model in models:
+        prompter = prompter_factory(prompter_type, client, model)
+        generated_responses = prompter.generate(df, prompt)
+        results[model] = generated_responses
+    return results
 
 def prompter_factory(prompter_type: str, client: object, model: str, temperature: float = 0) -> Union['PrompterBinary', 'PrompterClassification']:
     """
@@ -31,7 +53,7 @@ def prompter_factory(prompter_type: str, client: object, model: str, temperature
 
 class Prompter:
     """
-    A class that generates a response from a given model using the provided context and promp.
+    A class that generates a response from a given model using the provided context and prompt.
 
     Attributes:
         client (object): The client object.
@@ -60,31 +82,24 @@ class Prompter:
         self.temperature = temperature
 
     def generate(self, df: pd.DataFrame, prompt: str, max_attempts: int = 5) -> pd.DataFrame:
-            """
-            Generates responses for each context in the given dataframe using the specified prompt.
+        """
+        Generate responses for each context in the dataframe using the given prompt.
 
-            Args:
-                df (pandas.DataFrame): The dataframe containing the contexts.
-                prompt (str): The prompt given to the model for output formatting.
-                max_attempts (int, optional): The maximum number of attempts to generate a response. Defaults to 5.
+        Args:
+            df (pandas.DataFrame): The dataframe containing the contexts.
+            prompt (str): The prompt given to the model for output formatting.
+            max_attempts (int, optional): The maximum number of attempts to generate a response. Defaults to 5.
 
-            Returns:
-                pandas.DataFrame: The dataframe with the generated responses added as a new column.
-            
-            Raises:
-                ValueError: If the number of questions and responses does not match.
-            """
-            
-            chunks = df["Context"].tolist()
-            with concurrent.futures.ThreadPoolExecutor(max_workers=100) as executor:
-                responses = list(tqdm(executor.map(lambda c: self.generate_single(prompt, c, max_attempts), chunks), total=len(chunks)))
-                # Check for mismatch in lengths
-                if len(responses) != len(chunks):
-                    raise ValueError("Mismatch in number of questions and responses")
-            df[f'pred_{self.type}_{self.model.replace(".", "_").replace("-", "_")}'] = responses
-            #TODO: pred should be nan if response is None (max attempt reached)
-            #TODO: currently outputs a dict, should be pred only (handle both binary and classification)
-            return df
+        Returns:
+            pandas.DataFrame: A dataframe containing the generated responses. It has as many columns as the response structure.
+        """
+        
+        rows = df["Context"].tolist()
+        with concurrent.futures.ThreadPoolExecutor(max_workers=100) as executor:
+            responses = list(tqdm(executor.map(lambda c: self.generate_single(prompt, c, max_attempts), rows),
+                                  desc=f"{self.type} task using: {self.model}",
+                                  total=len(rows)))
+        return pd.DataFrame(responses)
 
     def generate_single(self, context: str, prompt: str, max_attempts: int = 5) -> dict:
         """
@@ -104,14 +119,14 @@ class Prompter:
             try:
                 attempt += 1
                 output = self._generate(context, prompt)
-                return self.symptom_struct(**output)
+                self.symptom_struct(**output) # Will go to exception if cannot unpack
+                return output
             except Exception as e:
                 if attempt < max_attempts:
                     sleep_time = 2 ** (attempt - 2)  # Exponential backoff formula
                     time.sleep(sleep_time)
                 else:
-                    print("Max attempts reached, handling failure...")
-                    return None
+                    return np.nan
 
     def _generate(self, context: str, prompt: str) -> dict:
         """

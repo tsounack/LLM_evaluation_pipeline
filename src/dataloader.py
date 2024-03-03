@@ -17,7 +17,7 @@ class DataLoader:
 
     Methods:
         list_csv_files: Returns a list of CSV files in the specified path(s).
-        get_standardized_dataframe: Returns a standardized dataframe with specified columns for context and target.
+        get_standardized_dataframe: Returns a standardized dataframe with specified columns for context and target(s).
         check_symptoms_validity: Checks if the dataframe's symptoms are valid.
 
     """
@@ -60,23 +60,35 @@ class DataLoader:
     
     def get_standardized_dataframe(self,
                                    context_col: str = "Text Data",
-                                   target_col: str = "symptom_status_gs",
+                                   target_binary_col: str = "symptom_status_gs",
+                                   target_classification_col: str = "symptom_detail_gs",
                                    keep_other_cols: bool = True) -> pd.DataFrame:
         """
-        Returns a standardized dataframe with specified columns for context and target.
+        Returns a standardized dataframe with specified columns for context and target(s).
 
         Args:
             context_col (str): The name of the column containing the context data. Defaults to "Text Data".
-            target_col (str): The name of the column containing the target data. Defaults to "symptom_status_gs".
+            target_binary_col (str): The name of the column containing the binary target data. Defaults to "symptom_status_gs".
+            target_classification_col (str): The name of the column containing the classification target data. Defaults to "symptom_detail_gs".
             keep_other_cols (bool): Whether to keep other columns in the dataframe. Defaults to True.
 
         Returns:
-            pd.DataFrame: The standardized dataframe with columns "Context" and "Target".
+            pd.DataFrame: The standardized dataframe with columns "Context" and 
+                "Target_binary", "Target_classification" (if specified).
         """
         dataframe = self._get_dataframe()
-        dataframe.rename(columns={context_col: "Context", target_col: "Target"}, inplace=True)
+        dataframe.rename(columns={context_col: "Context"}, inplace=True)
+        if target_binary_col in dataframe.columns:
+            dataframe.rename(columns={target_binary_col: "Target_binary"}, inplace=True)
+        if target_classification_col in dataframe.columns:
+            dataframe.rename(columns={target_classification_col: "Target_classification"}, inplace=True)
         if not keep_other_cols:
-            dataframe = dataframe[["Context", "Target"]]
+            cols_to_keep = ["Context"]
+            if "Target_binary" in dataframe.columns:
+                cols_to_keep.append("Target_binary")
+            if "Target_classification" in dataframe.columns:
+                cols_to_keep.append("Target_classification")
+            dataframe = dataframe[cols_to_keep]
         return dataframe
     
     def check_symptoms_validity(self, allowed_symptoms: list[str], symptoms_col: str = "symptom_detail_gs") -> None:
