@@ -3,7 +3,7 @@ from pydantic import BaseModel
 class SymptomBinary(BaseModel):
     status: bool
 
-class SymptomClassification(BaseModel):
+class SymptomMultilabel(BaseModel):
     Anxiety: bool
     Concentration_Problems: bool
     Constipation: bool

@@ -3,7 +3,7 @@ import time
 import concurrent.futures
 import numpy as np
 import pandas as pd
-from tools.model_structs import SymptomBinary, SymptomClassification
+from tools.model_structs import SymptomBinary, SymptomMultilabel
 from tqdm import tqdm
 from typing import Union
 
@@ -12,7 +12,7 @@ def run_configurations(prompter_type: str, client: object, models: list[str], df
     Run configurations for prompter using the provided list of models.
 
     Args:
-        prompter_type (str): The type of prompter. Valid values are 'binary' and 'classification'.
+        prompter_type (str): The type of prompter. Valid values are 'binary' and 'multilabel'.
         client (object): The client object.
         models (list[str]): List of models.
         df (pd.DataFrame): The DataFrame containing the context.
@@ -28,15 +28,16 @@ def run_configurations(prompter_type: str, client: object, models: list[str], df
         results[model] = generated_responses
     return results
 
-def prompter_factory(prompter_type: str, client: object, model: str, temperature: float = 0) -> Union['PrompterBinary', 'PrompterClassification']:
+def prompter_factory(prompter_type: str, client: object, model: str, temperature: float = 0) -> Union['Mistral', 'Llama']:
     """
     Factory function to create prompter objects based on the given prompter_type.
 
     Args:
-        prompter_type (str): The type of prompter to create. Valid values are 'binary' and 'classification'.
+        prompter_type (str): The type of prompter to create. Valid values are 'binary' and 'multilabel'.
         client(object): The client object.
         model (str): Link for the model, to be used by the client.
         temperature (float, optional): The temperature value for response generation. Defaults to 0.
+        #TODO: update
 
     Returns:
         Prompter: An instance of the appropriate prompter type.
@@ -44,12 +45,12 @@ def prompter_factory(prompter_type: str, client: object, model: str, temperature
     Raises:
         ValueError: If an invalid prompter type is provided.
     """
-    if prompter_type == 'binary':
-        return PrompterBinary(client, model, temperature)
-    elif prompter_type == 'classification':
-        return PrompterClassification(client, model, temperature)
+    if "mistral" in model:
+        return Mistral(prompter_type, client, model, temperature)
+    elif "llama" in model:
+        return Llama(prompter_type, client, model, temperature)
     else:
-        raise ValueError('Invalid prompter type')
+        raise ValueError('Invalid model type. Must be either "mistral" or "llama".')
 
 class Prompter:
     """
@@ -62,6 +63,7 @@ class Prompter:
 
     Methods:
         generate_single: Generates a response given a context and a prompt, with several attempts.
+        TODO: update
 
     """
 
@@ -83,7 +85,7 @@ class Prompter:
 
     def generate(self, df: pd.DataFrame, prompt: str, max_attempts: int = 5) -> pd.DataFrame:
         """
-        Generate responses for each context in the dataframe using the given prompt.
+        Generate responses for each context in the dataframe using the given prompt in a parallelized manner.
 
         Args:
             df (pandas.DataFrame): The dataframe containing the contexts.
@@ -97,7 +99,7 @@ class Prompter:
         rows = df["Context"].tolist()
         with concurrent.futures.ThreadPoolExecutor(max_workers=100) as executor:
             responses = list(tqdm(executor.map(lambda c: self.generate_single(prompt, c, max_attempts), rows),
-                                  desc=f"{self.type} task using: {self.model}",
+                                  desc=f"{self.prompter_type} task using: {self.model}",
                                   total=len(rows)))
         return pd.DataFrame(responses)
 
@@ -152,51 +154,28 @@ class Prompter:
         output=completion.choices[0].message.tool_calls[0].function.arguments
         output=json.loads(output)
         return output
+    
+    def _set_prompter_type(self, prompter_type: str) -> None:
+        if prompter_type == "binary":
+            self.symptom_struct = SymptomBinary
+            self.prompter_type = "binary"
+        elif prompter_type == "multilabel":
+            self.symptom_struct = SymptomMultilabel
+            self.prompter_type = "multilabel"
+        else:
+            raise ValueError("Invalid prompter type")
+        with open(f"tools/{self.prompter_type}.json", "r") as file:
+            self.tool = json.load(file)
+        self.tool_choice = {"type": "function", "function": {"name": f"symptom_{self.prompter_type}"}}
 
-class PrompterBinary(Prompter):
-    """
-    A class representing a binary prompter.
-
-    Inherits from the base Prompter class.
-
-    Attributes:
-        client (object): The client object.
-        model (str): Link for the model, to be used by the client.
-        temperature (float): The temperature value for response generation.
-
-    Methods:
-        __init__: Initializes a PrompterBinary object.
-    """
-
-    def __init__(self, client: object, model: str, temperature: float = 0) -> None:
+    
+class Mistral(Prompter):
+    def __init__(self, prompter_type: str, client: object, model: str, temperature: float = 0) -> None:
         super().__init__(client, model, temperature)
-        with open("tools/binary.json", "r") as file:
-            tool = json.load(file)
-        self.tool = tool
-        self.tool_choice = {"type": "function", "function": {"name": "symptom_binary"}}
-        self.symptom_struct = SymptomBinary
-        self.type = "binary"
+        self._set_prompter_type(prompter_type)
 
-class PrompterClassification(Prompter):
-    """
-    A class representing a classification prompter.
 
-    Inherits from the base Prompter class.
-
-    Attributes:
-        client (object): The client object.
-        model (str): Link for the model, to be used by the client.
-        temperature (float): The temperature value for response generation.
-
-    Methods:
-        __init__: Initializes a PrompterClassification object.
-    """
-
-    def __init__(self, client: object, model: str, temperature: float = 0) -> None:
+class Llama(Prompter):
+    def __init__(self, prompter_type: str, client: object, model: str, temperature: float = 0) -> None:
         super().__init__(client, model, temperature)
-        with open("tools/classification.json", "r") as file:
-            tool = json.load(file)
-        self.tool = tool
-        self.tool_choice = {"type": "function", "function": {"name": "symptom_classification"}}
-        self.symptom_struct = SymptomClassification
-        self.type = "classification"
+        # self._set_prompter_type(prompter_type) #TODO: is this useful?

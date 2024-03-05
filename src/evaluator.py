@@ -2,6 +2,10 @@ import pandas as pd
 import numpy as np
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix, multilabel_confusion_matrix
 
+def evaluate_configurations():
+    #TODO: Implement
+    pass
+
 def evaluate_model(data: pd.DataFrame, results: pd.DataFrame, verbose: bool = True, log: bool = False) -> None:
     """
     Evaluates the model using the provided data and results.
@@ -40,6 +44,7 @@ def evaluate_model(data: pd.DataFrame, results: pd.DataFrame, verbose: bool = Tr
 
 def evaluate_model_binary(data: pd.DataFrame, results: pd.DataFrame) -> tuple[float, float, float, float, list[list[int]]]:
     y_true = data["Target_binary"]
+    y_true = y_true.astype(str).replace({"Positive": True, "Negative": False})
     y_pred = results
     accuracy = accuracy_score(y_true, y_pred)
     precision = precision_score(y_true, y_pred)

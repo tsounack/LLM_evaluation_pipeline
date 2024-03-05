@@ -1,0 +1,9 @@
+Try 1:
+
+prompt = "Are any medical symptoms mentioned in the transcript"
+context = "i have a headache every time i see a cat and i hear voices that are not there"
+input = prompt + "\n" + context
+
+--> repeats prompt until it reaches the max token length
+
+

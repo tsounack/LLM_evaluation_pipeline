@@ -61,7 +61,7 @@ class DataLoader:
     def get_standardized_dataframe(self,
                                    context_col: str = "Text Data",
                                    target_binary_col: str = "symptom_status_gs",
-                                   target_classification_col: str = "symptom_detail_gs",
+                                   target_multilabel_col: str = "symptom_detail_gs",
                                    keep_other_cols: bool = True) -> pd.DataFrame:
         """
         Returns a standardized dataframe with specified columns for context and target(s).
@@ -69,25 +69,25 @@ class DataLoader:
         Args:
             context_col (str): The name of the column containing the context data. Defaults to "Text Data".
             target_binary_col (str): The name of the column containing the binary target data. Defaults to "symptom_status_gs".
-            target_classification_col (str): The name of the column containing the classification target data. Defaults to "symptom_detail_gs".
+            target_multilabel_col (str): The name of the column containing the multilabel target data. Defaults to "symptom_detail_gs".
             keep_other_cols (bool): Whether to keep other columns in the dataframe. Defaults to True.
 
         Returns:
             pd.DataFrame: The standardized dataframe with columns "Context" and 
-                "Target_binary", "Target_classification" (if specified).
+                "Target_binary", "Target_multilabel" (if specified).
         """
         dataframe = self._get_dataframe()
         dataframe.rename(columns={context_col: "Context"}, inplace=True)
         if target_binary_col in dataframe.columns:
             dataframe.rename(columns={target_binary_col: "Target_binary"}, inplace=True)
-        if target_classification_col in dataframe.columns:
-            dataframe.rename(columns={target_classification_col: "Target_classification"}, inplace=True)
+        if target_multilabel_col in dataframe.columns:
+            dataframe.rename(columns={target_multilabel_col: "Target_multilabel"}, inplace=True)
         if not keep_other_cols:
             cols_to_keep = ["Context"]
             if "Target_binary" in dataframe.columns:
                 cols_to_keep.append("Target_binary")
-            if "Target_classification" in dataframe.columns:
-                cols_to_keep.append("Target_classification")
+            if "Target_multilabel" in dataframe.columns:
+                cols_to_keep.append("Target_multilabel")
             dataframe = dataframe[cols_to_keep]
         return dataframe
     
