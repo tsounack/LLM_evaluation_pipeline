@@ -4,6 +4,11 @@ import glob
 import pandas as pd
 from typing import Union
 
+ALLOWED_SYMPTOMS = ['anxiety', 'concentration problems', 'constipation', 'cough',
+                    'diarrhea', 'fatigue', 'fever', 'headache', 'nausea', 
+                    'numbness and tingling', 'pain', 'poor appetite', 'rash', 
+                    'shortness of breath', 'trouble drinking fluids', 'vomiting', 'other']
+
 class DataLoader:
     """
     A class for loading data from CSV files.
@@ -62,7 +67,8 @@ class DataLoader:
                                    context_col: str = "Text Data",
                                    target_binary_col: str = "symptom_status_gs",
                                    target_multilabel_col: str = "symptom_detail_gs",
-                                   keep_other_cols: bool = True) -> pd.DataFrame:
+                                   keep_other_cols: bool = True,
+                                   allowed_symptoms: list[str] = ALLOWED_SYMPTOMS) -> pd.DataFrame:
         """
         Returns a standardized dataframe with specified columns for context and target(s).
 
@@ -71,23 +77,25 @@ class DataLoader:
             target_binary_col (str): The name of the column containing the binary target data. Defaults to "symptom_status_gs".
             target_multilabel_col (str): The name of the column containing the multilabel target data. Defaults to "symptom_detail_gs".
             keep_other_cols (bool): Whether to keep other columns in the dataframe. Defaults to True.
-
+            #TODO: update
         Returns:
             pd.DataFrame: The standardized dataframe with columns "Context" and 
-                "Target_binary", "Target_multilabel" (if specified).
+                "Target binary", "Target multilabel" (if specified). #TODO: update
         """
         dataframe = self._get_dataframe()
         dataframe.rename(columns={context_col: "Context"}, inplace=True)
         if target_binary_col in dataframe.columns:
-            dataframe.rename(columns={target_binary_col: "Target_binary"}, inplace=True)
+            dataframe.rename(columns={target_binary_col: "Target binary"}, inplace=True)
+            dataframe["Target binary"] = dataframe["Target binary"].replace({"Positive": True, "Negative": False}).astype(bool)
         if target_multilabel_col in dataframe.columns:
-            dataframe.rename(columns={target_multilabel_col: "Target_multilabel"}, inplace=True)
+            for symptom in allowed_symptoms:
+                dataframe[f"Target {symptom}"] = dataframe[target_multilabel_col].apply(lambda x: symptom in str(x).split(";") if pd.notnull(x) else False).astype(bool)
         if not keep_other_cols:
             cols_to_keep = ["Context"]
-            if "Target_binary" in dataframe.columns:
-                cols_to_keep.append("Target_binary")
-            if "Target_multilabel" in dataframe.columns:
-                cols_to_keep.append("Target_multilabel")
+            if "Target binary" in dataframe.columns:
+                cols_to_keep.append("Target binary") # TODO: update
+            if "Target multilabel" in dataframe.columns:
+                cols_to_keep.append("Target multilabel") # TODO: update
             dataframe = dataframe[cols_to_keep]
         return dataframe
     
