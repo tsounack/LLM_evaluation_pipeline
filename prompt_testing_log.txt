@@ -1,0 +1,111 @@
+Try 0:
+
+    prompt = "Are any medical symptoms mentioned in the transcript"
+
+    --> No structured output, but correct answer. The answer seems to start with Yes or No.
+    ==> Use the first word of the answer as the structured output. (limit: will not scale to multilabel prompting).
+
+    Results:
+        accuracy: 0.7525 (0.7164-0.7873 95% CI)
+        precision: 0.7428 (0.7058-0.7795 95% CI)
+        recall: 0.9815 (0.9669-0.9925 95% CI)
+        f1: 0.8455 (0.8199-0.8698 95% CI)
+        Unstructured output ratio: 0.0 (0.0-0.0 95% CI)
+
+    Analysis:
+        There are no NaN values: the structured output is always Yes or No.
+        For the next iteration, we don't need to focus on structuring the output, but rather on the quality of the answer.
+
+
+Try 1:
+
+    prompt = "You are a model diagnosing diseases based on Doctor - Patient conversations. \
+              Given a conversation, you should determine whether the patient has symptoms or not. \
+              Are any medical symptoms mentioned in the transcript?"
+
+    Results:
+        accuracy: 0.6982 (0.6616-0.7378 95% CI)
+        precision: 0.7114 (0.6746-0.749 95% CI)
+        recall: 0.9652 (0.9462-0.9813 95% CI)
+        f1: 0.8189 (0.7931-0.8465 95% CI)
+        Unstructured output ratio: 0.0325 (0.0182-0.0473 95% CI)
+
+    Analysis:
+        Interestingly, providing more context to the model seems to have lowered the performance. However, the 95% CI is still
+            overlapping with the previous try. There is therefore no statistical evidence that the performance has decreased 
+            within a 95% confidence interval, although the means of the metrics distributions are lower.
+        This is not exclusive to Llama2, but is generally observed across all models, indicating that the prompt can be improved.
+        This prompt also leads to a higher unstructured output ratio. All the unstructured outputs start with
+            "Based on the conversation provided, ...".
+        For the next iteration, we can make an explicit statement that the model should not provide any context, and that the
+            answer should be a simple Yes or No.
+
+
+Try 2:
+
+    prompt = "You are a model diagnosing diseases based on Doctor - Patient conversations. \
+              Given a conversation, you should determine whether the patient has symptoms or not. \
+              Your answer should not provide any context, it should be a simple Yes or No.\
+              Are any medical symptoms mentioned in the transcript?"
+
+    Results:
+        accuracy: 0.6908 (0.6527-0.7291 95% CI)
+        precision: 0.6972 (0.659-0.736 95% CI)
+        recall: 0.9765 (0.96-0.9918 95% CI)
+        f1: 0.8134 (0.7861-0.8403 95% CI)
+        Unstructured output ratio: 0.0 (0.0-0.0 95% CI)
+
+    Analysis:
+        The performance is similar to the first try, but the unstructured output ratio is now 0.0. This is a good sign, as
+            the model is now providing structured outputs.
+        We can see that the model's errors are mostly false positives. Below 200 tokens, the outputs are mostly incorrect.
+        For the next iteration, we can focus on improving the quality of the answer, as the structured output is already correct.
+        Following these guidelines: https://arxiv.org/abs/2201.11903, using chain-of-thought could increase llama2's performance.
+            We can start by implementing one or two shot prompting.
+
+
+Try 3:
+    prompt = "You are a model diagnosing diseases based on Doctor - Patient conversations. \
+              Given a conversation, you should determine whether the patient has symptoms or not. \
+              Your answer should not provide any context, it should be a simple Yes or No.\
+              For instance, given the following conversation: \
+              D: Are you experiencing any fatigue?\n\
+              P: I have a headache every time i see a cat and i hear voices that are not there.\n\
+              Your answer should be: 'Yes'.\
+              Are any medical symptoms mentioned in the transcript?"
+    
+    Results:
+        accuracy: 0.693 (0.6563-0.7327 95% CI)
+        precision: 0.6924 (0.6551-0.7318 95% CI)
+        recall: 1.0 (1.0-1.0 95% CI)
+        f1: 0.8181 (0.7916-0.8451 95% CI)
+        Unstructured output ratio: 0.0 (0.0-0.0 95% CI)
+
+    Analysis:
+        Compared to the previous try, we now have a perfect recall, meaning that the model is not missing any symptoms.
+        The other metrics do not show a statistical difference from the previous try. However, we can note that although
+            we are providing a more complex prompt, the model is able to retain the information regarding the output format
+            and only provides structured outputs.
+
+TODO: try two shot? Try making the query simpler. Try getting rid of false negatives by passing an example where there is a symptom but it does not concern the patient.
+
+
+Try cot:
+
+    prompt = "You are a model diagnosing diseases based on Doctor - Patient conversations. \
+              Given a conversation, you should determine whether the patient has symptoms or not. \
+              Your answer should not provide any context, it should be a simple Yes or No.\
+              For instance, given the following conversation: \
+              D: Are you experiencing any fatigue?\n\
+              P: I have a headache every time i see a cat and i hear voices that are not there.\n\
+              Your answer should be: 'Yes', since the patient mentions they are experiencing a headache.\
+              Are any medical symptoms mentioned in the transcript?"
+
+    Results:
+        accuracy: 0.6846 (0.6417-0.7243 95% CI)
+        precision: 0.6897 (0.6471-0.7289 95% CI)
+        recall: 0.9868 (0.974-0.9974 95% CI)
+        f1: 0.8117 (0.7808-0.8394 95% CI)
+        Unstructured output ratio: 0.0053 (0.0-0.0127 95% CI)
+
+    Analysis:

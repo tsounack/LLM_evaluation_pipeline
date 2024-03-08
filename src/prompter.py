@@ -27,7 +27,7 @@ def run_configurations(prompter_type: str, client: object, models: list[str], df
     results = {}
     for model in models:
         prompter = prompter_factory(prompter_type, client, model)
-        generated_responses = prompter.generate(df, prompt)
+        generated_responses, nans = prompter.generate(df, prompt)
         results[model] = generated_responses
     return results
 
@@ -122,22 +122,27 @@ class Prompter:
             max_attempts (int, optional): The maximum number of attempts to generate a response. Defaults to 5.
 
         Returns:
-            dict: The generated response as a dictionary.
+            dict: The generated response as a dictionary. #TODO: update
 
         """
         attempt = 0
         while attempt < max_attempts:
             try:
                 attempt += 1
-                output = self._generate(context, prompt)
-                self.symptom_struct(**output) # Will go to exception if cannot unpack
-                return output
+                structured_output, output = self._generate(context, prompt)
+                self.symptom_struct(**structured_output) # Will go to exception if cannot unpack
+                if output:
+                    structured_output["output"] = output
+                return structured_output
             except Exception as e:
                 if attempt < max_attempts:
                     sleep_time = 2 ** (attempt - 2)  # Exponential backoff formula
                     time.sleep(sleep_time)
                 else:
-                    return np.nan
+                    res_dict = {"status": np.nan}
+                    if output:
+                        res_dict["output"] = output
+                    return res_dict #TODO: not compatible with multilabel
     
     def _set_prompter_type(self, prompter_type: str) -> None:
         if prompter_type == "binary":
@@ -192,13 +197,13 @@ class Mistral(Prompter):
         )
         output=completion.choices[0].message.tool_calls[0].function.arguments
         output=json.loads(output)
-        return output
+        return output, None
 
 
 class Llama(Prompter):
     def __init__(self, prompter_type: str, client: object, model: str, temperature: float = 0) -> None:
         super().__init__(client, model, temperature)
-        # self._set_prompter_type(prompter_type) #TODO: is this useful?
+        self._set_prompter_type(prompter_type) # for now only useful for labels
     
     def _generate(self, context: str, prompt: str) -> dict:
         """
@@ -217,10 +222,14 @@ class Llama(Prompter):
         completion =self.client.chat.completions.create(
             model=self.model,
             temperature=self.temperature,
-            tools=self.tool,
-            tool_choice=self.tool_choice,
             messages=messages
         )
-        output=completion.choices[0].message.tool_calls[0].function.arguments
-        output=json.loads(output)
-        return output
+        output=completion.choices[0].message.content
+        first_word = output.split()[0].rstrip(',.')
+        if first_word == 'Yes':
+            first_word_mapped = True
+        elif first_word == 'No':
+            first_word_mapped = False
+        else:
+            first_word_mapped = np.nan
+        return {'status': first_word_mapped}, output
