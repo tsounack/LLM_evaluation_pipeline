@@ -5,6 +5,7 @@ This is a repository for evaluating Large Language Models on detecting symptoms 
 ## In this README :point_down:
 - [Initial Setup](#inital-setup)
 - [Features](#features)
+- [Demonstration](#demonstration)
 
 ## Inital setup
 
@@ -22,17 +23,31 @@ This is a repository for evaluating Large Language Models on detecting symptoms 
 2. Provide your Client API key
 
     Rename the file **.env.sample** to **.env**
-    
+
     Enter your Client API key in this file.
 
 
 ## Features
 
-There are four main components to this pipeline:
+This pipeline aims to be user-friendly and modular. It does so by separating the tasks in four main components:
 - API
+    Instantiating API objects allows to seemlessly operate with different APIs. If models from different APIs have to be tested, the logic 
+    to handle the different client behaviours can be implemented here.
 - Dataloader
+    Dataloader handles all the data preprocessing steps. It can work with a variety of inputs, runs sanity checks on its own and provides 
+    the user with a standardized dataframe that simplifies downstream operations.
 - Prompter
+    Prompter objects generates model outputs by handling model-specific prompting methods and output structuring logic. It works with binary 
+    and multilabel classification tasks. To efficiently generate predictions for large inputs, it integrates parallelized prediction generation 
+    and token usage tracking.
 - Scorer
+    Scorer is used to assess the performance of prompter models. It works with binary and multilabel classification tasks, providing metrics and 
+    plots for the user.
+
+
+## Demonstration
+
+For demonstrating the pipeline's implementation, please refer to [this notebook](https://github.com/tsounack/LLM_evaluation_pipeline/scripts/demo.ipynb).
 
 
 #TODO:
