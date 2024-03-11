@@ -30,17 +30,23 @@ This is a repository for evaluating Large Language Models on detecting symptoms 
 ## Features
 
 This pipeline aims to be user-friendly and modular. It does so by separating the tasks in four main components:
-- API
+- **API**
+
     Instantiating API objects allows to seemlessly operate with different APIs. If models from different APIs have to be tested, the logic 
     to handle the different client behaviours can be implemented here.
-- Dataloader
+    
+- **Dataloader**
+
     Dataloader handles all the data preprocessing steps. It can work with a variety of inputs, runs sanity checks on its own and provides 
     the user with a standardized dataframe that simplifies downstream operations.
-- Prompter
+
+- **Prompter**
+
     Prompter objects generates model outputs by handling model-specific prompting methods and output structuring logic. It works with binary 
     and multilabel classification tasks. To efficiently generate predictions for large inputs, it integrates parallelized prediction generation 
     and token usage tracking.
-- Scorer
+
+- **Scorer**
     Scorer is used to assess the performance of prompter models. It works with binary and multilabel classification tasks, providing metrics and 
     plots for the user.
 
