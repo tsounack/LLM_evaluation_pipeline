@@ -9,6 +9,7 @@ This is a repository for evaluating Large Language Models on detecting symptoms 
 ## Inital setup
 
 1. Create and activate a conda environment
+
     To do this, start by creating the provided environment. After navigating to the root of this repository, enter in your terminal:
     ```
     conda env create -f environment.yml
@@ -19,7 +20,9 @@ This is a repository for evaluating Large Language Models on detecting symptoms 
     ```
 
 2. Provide your Client API key
+
     Rename the file **.env.sample** to **.env**
+    
     Enter your Client API key in this file.
 
 
