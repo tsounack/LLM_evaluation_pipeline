@@ -1,40 +1,37 @@
 Try 0:
-
     prompt = "Are any medical symptoms mentioned in the transcript"
 
     --> No structured output, but correct answer. The answer seems to start with Yes or No.
-    ==> Use the first word of the answer as the structured output. (limit: will not scale to multilabel prompting).
+    ==> We can use the first word of the answer as the output itself. (limit: will not scale to multilabel prompting).
 
     Results:
-        accuracy: 0.7525 (0.7164-0.7873 95% CI)
-        precision: 0.7428 (0.7058-0.7795 95% CI)
-        recall: 0.9815 (0.9669-0.9925 95% CI)
-        f1: 0.8455 (0.8199-0.8698 95% CI)
+        accuracy: 0.737 (0.7-0.7727 95% CI)
+        precision: 0.7245 (0.6856-0.7614 95% CI)
+        recall: 1.0 (1.0-1.0 95% CI)
+        f1: 0.8401 (0.8135-0.8645 95% CI)
         Unstructured output ratio: 0.0 (0.0-0.0 95% CI)
+        Total tokens: 389,372
 
     Analysis:
-        There are no NaN values: the structured output is always Yes or No.
+        There are no unstructured outputs: the output always starts with Yes or No.
         For the next iteration, we don't need to focus on structuring the output, but rather on the quality of the answer.
 
 
 Try 1:
-
     prompt = "You are a model diagnosing diseases based on Doctor - Patient conversations. \
               Given a conversation, you should determine whether the patient has symptoms or not. \
               Are any medical symptoms mentioned in the transcript?"
 
     Results:
-        accuracy: 0.6982 (0.6616-0.7378 95% CI)
-        precision: 0.7114 (0.6746-0.749 95% CI)
-        recall: 0.9652 (0.9462-0.9813 95% CI)
-        f1: 0.8189 (0.7931-0.8465 95% CI)
-        Unstructured output ratio: 0.0325 (0.0182-0.0473 95% CI)
+        accuracy: 0.8017 (0.7631-0.8384 95% CI)
+        precision: 0.7935 (0.7547-0.8313 95% CI)
+        recall: 1.0 (1.0-1.0 95% CI)
+        f1: 0.8847 (0.8602-0.9079 95% CI)
+        Unstructured output ratio: 0.213 (0.18-0.2473 95% CI)
+        Total tokens: 416,396
 
     Analysis:
-        Interestingly, providing more context to the model seems to have lowered the performance. However, the 95% CI is still
-            overlapping with the previous try. There is therefore no statistical evidence that the performance has decreased 
-            within a 95% confidence interval, although the means of the metrics distributions are lower.
-        This is not exclusive to Llama2, but is generally observed across all models, indicating that the prompt can be improved.
+        Providing more context to the model improved the performance.
         This prompt also leads to a higher unstructured output ratio. All the unstructured outputs start with
             "Based on the conversation provided, ...".
         For the next iteration, we can make an explicit statement that the model should not provide any context, and that the
@@ -42,26 +39,152 @@ Try 1:
 
 
 Try 2:
-
     prompt = "You are a model diagnosing diseases based on Doctor - Patient conversations. \
               Given a conversation, you should determine whether the patient has symptoms or not. \
               Your answer should not provide any context, it should be a simple Yes or No.\
               Are any medical symptoms mentioned in the transcript?"
 
     Results:
-        accuracy: 0.6908 (0.6527-0.7291 95% CI)
-        precision: 0.6972 (0.659-0.736 95% CI)
-        recall: 0.9765 (0.96-0.9918 95% CI)
-        f1: 0.8134 (0.7861-0.8403 95% CI)
+        accuracy: 0.7465 (0.7127-0.78 95% CI)
+        precision: 0.7387 (0.7031-0.7771 95% CI)
+        recall: 0.979 (0.9631-0.9921 95% CI)
+        f1: 0.8419 (0.8174-0.8666 95% CI)
         Unstructured output ratio: 0.0 (0.0-0.0 95% CI)
+        Total tokens: 186,786
 
     Analysis:
-        The performance is similar to the first try, but the unstructured output ratio is now 0.0. This is a good sign, as
-            the model is now providing structured outputs.
-        We can see that the model's errors are mostly false positives. Below 200 tokens, the outputs are mostly incorrect.
-        For the next iteration, we can focus on improving the quality of the answer, as the structured output is already correct.
-        Following these guidelines: https://arxiv.org/abs/2201.11903, using chain-of-thought could increase llama2's performance.
-            We can start by implementing one or two shot prompting.
+        The model now generates structured outputs. Because of that, the number of tokens used is significantly lower.
+        However, the performance is worse than the previous try.
+        We can see that the model's errors are mostly false positives. To improve on this, we can perform error interrogation
+            to understand the types of error.
+
+        Type 1: Symptoms relative to other people
+            Context: "P: Uhm, I know my grandfather had lung cancer, but he used to smoke. D: OK, I see. How old was he? [...]"
+            Output: "Yes, the patient mentions that their grandfather had lung cancer, which is a medical symptom. [...]"
+            --> To fix this, we could introduce such an example in the prompt and explictly tell the model that it should not
+                consider symptoms that are not related to the patient.
+
+        Type 2: Symptoms could be inferred from the context, but not explicit
+            Context: "D: Yeah, and no worries, and then we'll also do like a full physical examination. P: That sounds great. D: Alright."
+            Model Output: "Yes, the patient mentions "a full physical examination" which implies that they are experiencing some symptoms [...]"
+            --> Similarly, this can be fixed by providing an example in the prompt and explicitly telling the model that it should
+                only consider explicit mentions of symptoms. We could pass the list of allowed symptoms in the prompt.
+
+
+Try 3:
+    prompt = "You are a model diagnosing diseases based on Doctor - Patient conversations. \
+              Given a conversation, you should determine whether the patient has symptoms or not. \
+              Your answer should not provide any context, it should be a simple Yes or No. \
+              Some symptoms will be mentioned but will not apply to the patient. It is important \
+              that you only consider symptoms that are experienced by the patient. It is also \
+              important that you only consider explicit mentions of symptoms. \
+              Are any medical symptoms mentioned in the transcript?"
+
+    Results:
+        accuracy: 0.7543 (0.7164-0.7909 95% CI)
+        precision: 0.7376 (0.6996-0.7758 95% CI)
+        recall: 1.0 (1.0-1.0 95% CI)
+        f1: 0.8488 (0.8233-0.8738 95% CI)
+        Unstructured output ratio: 0.0 (0.0-0.0 95% CI)
+        Total tokens: 212,830
+        
+    Analysis:
+        There does not appear to be a statisically significant difference between this try and the previous one.
+        To improve on the two types of errors, we can provide few shot examples of false positives in the prompt.
+        Based on the following paper: https://arxiv.org/abs/2201.11903, adding chain-of-thought examples could improve the
+            model's performance. We can explain the thought process with the examples in the prompt.
+
+
+Try 4:
+    prompt = "You are a model diagnosing diseases based on Doctor - Patient conversations. \
+              Given a conversation, you should determine whether the patient has symptoms or not. \
+              Your answer should not provide any context, it should be a simple Yes or No. \
+              Some symptoms will be mentioned but will not apply to the patient. It is important \
+              that you only consider symptoms that are experienced by the patient. \
+              An example of a patient mentioning a symptom that does not apply to them is: \
+              'P: My daughter is having fevers and barely sleeps'. Your answer should be \
+              'No, since the patient is not the one experiencing the symptoms,'. \
+              It is also important that you only consider explicit mentions of symptoms. \
+              An example of a patient not explicitly mentioning a symptom is: \
+              'D: You need to get an MRI as soon as possible. P: OK. D: Alright.' \
+              Your answer should be: 'No, although the patient needs to get an MRI which \
+              implies that they are experiencing some symptoms, they do not explicitly mention any.' \
+              Are any medical symptoms mentioned in the transcript?"
+
+    Results:
+        accuracy: 0.7942 (0.7582-0.8291 95% CI)
+        precision: 0.7727 (0.7337-0.8099 95% CI)
+        recall: 0.9946 (0.9865-1.0 95% CI)
+        f1: 0.8696 (0.8452-0.8937 95% CI)
+        Unstructured output ratio: 0.0 (0.0-0.0 95% CI)
+        Total tokens: 288,502
+
+    Analysis:
+        While introducing examples has helped improve the performance, we are still not on par with the performance of try 1.
+        The drop in performance occurred between try 1 and try 2, as we gave specific instructions to the model to structure its output.
+        To confirm that this is what changed the performance, we can keep the same prompt, but remove the instructions relative to output structure.
+
+
+Try 5:
+    prompt = "You are a model diagnosing diseases based on Doctor - Patient conversations. \
+              Given a conversation, you should determine whether the patient has symptoms or not. \
+              Some symptoms will be mentioned but will not apply to the patient. It is important \
+              that you only consider symptoms that are experienced by the patient. \
+              An example of a patient mentioning a symptom that does not apply to them is: \
+              'P: My daughter is having fevers and barely sleeps'. Your answer should be \
+              'No, since the patient is not the one experiencing the symptoms,'. \
+              It is also important that you only consider explicit mentions of symptoms. \
+              An example of a patient not explicitly mentioning a symptom is: \
+              'D: You need to get an MRI as soon as possible. P: OK. D: Alright.' \
+              Your answer should be: 'No, although the patient needs to get an MRI which \
+              implies that they are experiencing some symptoms, they do not explicitly mention any.' \
+              Are any medical symptoms mentioned in the transcript?"
+
+    Results:
+        accuracy: 0.8146 (0.7828-0.8462 95% CI)
+        precision: 0.7928 (0.7554-0.8285 95% CI)
+        recall: 0.9921 (0.982-1.0 95% CI)
+        f1: 0.8812 (0.8575-0.9043 95% CI)
+        Unstructured output ratio: 0.0036 (0.0-0.0091 95% CI)
+        Total tokens: 311,819
+
+    Analysis:
+        The performance is now on par with the performance of try 1, while having a lower unstructured output ratio.
+        This confirms that the drop in performance between try 1 and try 2 was due to the instructions given to the model to structure its output.
+        We can move forward with this prompt and focus on improving the precision, as the recall is already very high.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 Try 3:
@@ -84,14 +207,12 @@ Try 3:
     Analysis:
         Compared to the previous try, we now have a perfect recall, meaning that the model is not missing any symptoms.
         The other metrics do not show a statistical difference from the previous try. However, we can note that although
-            we are providing a more complex prompt, the model is able to retain the information regarding the output format
+            we are providing a longer prompt, the model is able to retain the information regarding the output format
             and only provides structured outputs.
+        We can move forward with providing a chain-of-thought example in the prompt.
 
-TODO: try two shot? Try making the query simpler. Try getting rid of false negatives by passing an example where there is a symptom but it does not concern the patient.
 
-
-Try cot:
-
+Try 4:
     prompt = "You are a model diagnosing diseases based on Doctor - Patient conversations. \
               Given a conversation, you should determine whether the patient has symptoms or not. \
               Your answer should not provide any context, it should be a simple Yes or No.\
@@ -102,10 +223,35 @@ Try cot:
               Are any medical symptoms mentioned in the transcript?"
 
     Results:
-        accuracy: 0.6846 (0.6417-0.7243 95% CI)
-        precision: 0.6897 (0.6471-0.7289 95% CI)
-        recall: 0.9868 (0.974-0.9974 95% CI)
-        f1: 0.8117 (0.7808-0.8394 95% CI)
-        Unstructured output ratio: 0.0053 (0.0-0.0127 95% CI)
+        accuracy: 0.6904 (0.6509-0.7309 95% CI)
+        precision: 0.6904 (0.6509-0.7309 95% CI)
+        recall: 1.0 (1.0-1.0 95% CI)
+        f1: 0.8167 (0.7885-0.8445 95% CI)
+        Unstructured output ratio: 0.0 (0.0-0.0 95% CI)
 
     Analysis:
+        Implementing a chain-of-thought example did not improve the performance. The metrics are similar to the previous try.
+        Since the recall is maximum, we can focus on improving the precision. We can do so by performing error interrogation
+            to understand the types of error.
+
+        Ex1: Symptoms relative to other people
+            Context: "P: Uhm, I know my grandfather had lung cancer, but he used to smoke. D: OK, I see. How old was he? [...]"
+            Output: "Yes, the patient mentions that their grandfather had lung cancer, which is a medical symptom. [...]"
+            --> To fix this, we could introduce such an example in the prompt and explictly tell the model that it should not
+                consider symptoms that are not related to the patient.
+
+        Ex2: Hallucinations
+            Context: "D: So just to make sure that we're being comprehensive. P: OK. That sounds good. Thank you so much. D: Thank you."  
+            Output: "Yes, the patient mentions experiencing a headache, which is a medical symptom. Therefore, the answer is Yes."
+            --> Interestingly, the false diagnosis in this case is often a headache, which is most likely due to the fact that we are
+                introducing this example in the prompt. This might also be why short prompts perform worse: the model is more likely to
+                focus on the example. We can try to make it more explicit that this is an example in the prompt.
+
+        Ex3: Symptoms could be inferred from the context, but not explicit
+            Context: "D: Yeah, and no worries, and then we'll also do like a full physical examination. P: That sounds great. D: Alright."
+            Model Output: "Yes, the patient mentions "a full physical examination" which implies that they are experiencing some symptoms [...]"
+            --> Similarly, this can be fixed by providing an example in the prompt and explicitly telling the model that it should
+                only consider explicit mentions of symptoms. We could pass the list of allowed symptoms in the prompt.
+            
+
+TODO: try two shot? Try making the query simpler. Try getting rid of false negatives by passing an example where there is a symptom but it does not concern the patient.

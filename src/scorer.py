@@ -8,7 +8,7 @@ pd.set_option('future.no_silent_downcasting', True)
 METRICS = ["accuracy", "precision", "recall", "f1", "Unstructured output ratio"]
 
 
-def scorer_factory(scorer_type: str, data: pd.DataFrame, results: pd.DataFrame) -> Union['BinaryScorer', 'MultilabelScorer']:
+def scorer_factory(scorer_type: str, data: pd.DataFrame, results: pd.DataFrame, model_name: str) -> Union['BinaryScorer', 'MultilabelScorer']:
     """
     Factory function to create scorer objects based on the given scorer_type.
 
@@ -16,32 +16,66 @@ def scorer_factory(scorer_type: str, data: pd.DataFrame, results: pd.DataFrame) 
         scorer_type (str): The type of scorer to create. Valid values are 'binary' and 'multilabel'.
         data (pd.DataFrame): The data used to generate the results.
         results (pd.DataFrame): The generated results.
-
-    Returns:
-        Scorer: An instance of the appropriate scorer type.
+        model_name (str): The name of the model being evaluated for plot legends.
 
     Raises:
         ValueError: If an invalid scorer type is provided.
+
+    Returns:
+        Scorer: An instance of the appropriate scorer type.
     """
     if scorer_type == "binary":
-        return BinaryScorer(data, results)
+        return BinaryScorer(data, results, model_name)
     elif scorer_type == "multilabel":
-        return MultilabelScorer(data, results)
+        return MultilabelScorer(data, results, model_name)
     else:
         raise ValueError('Invalid scorer type. Must be either "binary" or "multilabel".')
 
 class Scorer:
-    def __init__(self, data: pd.DataFrame, results: pd.DataFrame):
+    """
+    A class for scoring and evaluating models using bootstrapping.
+
+    Attributes:
+        data (pd.DataFrame): The input data for evaluation.
+        results (pd.DataFrame): The model predictions (output of prompter.generate).
+        model_name (str): The name of the model being evaluated for plot legends.
+
+    Methods:
+        display_bootstrap_results: Displays the bootstrapped evaluation results.
+    """
+
+    def __init__(self, data: pd.DataFrame, results: pd.DataFrame, model_name: str) -> None:
+        """
+        Initializes a Scorer object.
+
+        Args:
+            data (pd.DataFrame): The input data for evaluation.
+            results (pd.DataFrame): The model predictions (output of prompter.generate).
+
+        Returns:
+            None
+        """
         self.data = data
         self.results = results
+        self.model_name = model_name
         data = data.reset_index(drop=True)
         results = results.reset_index(drop=True)
         self.df_combined = pd.concat([self.data, self.results], axis=1)
         
-    def _bootstrap_results(self, sample_size: int, n_samples = 1000, model_name: str = None) -> dict:
+    def _bootstrap_results(self, sample_size: int, n_samples = 1000) -> dict:
+        """
+        Perform bootstrapping on the given sample size and number of samples.
+        
+        Args:
+            sample_size (int): The size of each bootstrap sample.
+            n_samples (int, optional): The number of bootstrap samples to generate. Default is 1000.
+        
+        Returns:
+            dict: A dictionary matching each metric to its list of values (computed with bootstrap resampling)
+        """
         bootstrap_results = {metric: [] for metric in METRICS}
-        desc = f"Bootstrapping {model_name}" if model_name else "Bootstrapping"
-        for _ in tqdm(range(n_samples), desc=desc):
+        # Sample with replacement and store the metrics
+        for _ in tqdm(range(n_samples), desc=f"Bootstrapping {self.model_name}"):
             sample = self.df_combined.sample(sample_size, replace=True)
             evaluation_results = self.evaluate(sample)
             for metric in METRICS:
@@ -49,6 +83,17 @@ class Scorer:
         return {metric: pd.Series(values) for metric, values in bootstrap_results.items()}
     
     def display_bootstrap_results(self, sample_size: int, output_type: str = "text", n_samples = 1000) -> None:
+        """
+        Display the bootstrap results - text and/or plot.
+
+        Args:
+            sample_size (int): The size of each bootstrap sample.
+            output_type (str): The type of output to display. Options are "text", "plot", or "both". Default is "text".
+            n_samples (int): The number of bootstrap samples to generate. Default is 1000.
+
+        Returns:
+            None
+        """
         bootstrap_results = self._bootstrap_results(sample_size, n_samples)
         if output_type == "text" or output_type == "both":
             for metric, values in bootstrap_results.items():
@@ -64,7 +109,7 @@ class Scorer:
                 ax.axvline(x=values.quantile(q=0.025), color = 'black', ls = '--', label="95% CI" if i == 0 else None)
                 ax.axvline(x=values.quantile(q=0.975), color = 'black', ls = '--')
                 ax.axvline(x=np.mean(values), color='red', linestyle='-', label="Mean" if i == 0 else None)
-            fig.suptitle(f"Bootstrapped Evaluation Results (nb samples={n_samples})")
+            fig.suptitle(f"{self.model_name} - Bootstrapped Evaluation Results (nb samples={n_samples})")
             fig.legend()
             plt.tight_layout()
             # centering the last two plots
@@ -74,13 +119,50 @@ class Scorer:
             plt.show()
 
 class BinaryScorer(Scorer):
-    def __init__(self, data: pd.DataFrame, results: pd.DataFrame):
-        super().__init__(data, results)
+    """
+    A class for evaluating binary predictions and calculating performance metrics.
+
+    Methods:
+        get_error_dataframe: Returns a dataframe containing the rows with prediction errors.
+        evaluate: Evaluates the binary predictions and returns a dictionary of performance metrics.
+        display_length_distribution: Displays a histogram of the distribution of context lengths.
+    """
+
+    def __init__(self, data: pd.DataFrame, results: pd.DataFrame, model_name: str) -> None:
+        """
+        Initialize the BinaryScorer object.
+
+        Args:
+            data (pd.DataFrame): The input data for evaluation.
+            results (pd.DataFrame): The model predictions (output of prompter.generate).
+            model_name (str): The name of the model being evaluated for plot legends.
+
+        Returns:
+            None
+        """
+        super().__init__(data, results, model_name)
 
     def get_error_dataframe(self) -> pd.DataFrame:
+        """
+        Returns the dataframe containing the rows with prediction errors.
+
+        Returns:
+            pd.DataFrame: The dataframe containing the rows with prediction errors.
+        """
         return self.df_combined[self.df_combined["Target binary"] != self.df_combined[self.results.columns[0]]]
     
-    def evaluate(self, data: pd.DataFrame) -> None:
+    def evaluate(self, data: pd.DataFrame) -> dict:
+        """
+        Evaluate the performance of a model using the provided data.
+
+        Args:
+            data (pd.DataFrame): The input data containing the true and predicted values.
+
+        Returns:
+            dict: A dictionary containing the evaluation metrics, including accuracy, precision,
+                  recall, F1 score, confusion matrix, and unstructured output ratio.
+        """
+        # NaN values are the unstructured outputs
         df_not_nan = data[~data['Pred status'].isna()]
         df_nan = data[data['Pred status'].isna()]
         y_true, y_pred = df_not_nan["Target binary"], df_not_nan["Pred status"]
@@ -98,7 +180,13 @@ class BinaryScorer(Scorer):
                 "confusion_matrix": confusion,
                 "Unstructured output ratio": unstructured_ratio}
     
-    def display_length_distribution(self, model_name:str) -> None:
+    def display_length_distribution(self) -> None:
+        """
+        Plots the distribution of context lengths for correct and incorrect predictions.
+
+        Returns:
+            None
+        """
         correct = self.df_combined[self.df_combined["Target binary"] == self.df_combined["Pred status"]]
         incorrect = self.df_combined[self.df_combined["Target binary"] != self.df_combined["Pred status"]]
         incorrect_nans = incorrect[incorrect['Pred status'].isna()]
@@ -116,22 +204,52 @@ class BinaryScorer(Scorer):
         plt.axvline(x=np.mean(self.df_combined["Context"].str.len()), color='red', linestyle='-', label="Mean")
         plt.xlabel("Length of Context")
         plt.ylabel("Frequency")
-        plt.title(f"Distribution of Context Length: {model_name}")
+        plt.title(f"Distribution of Context Length: {self.model_name}")
         plt.legend()
         plt.show()
 
 class MultilabelScorer(Scorer):
-    def __init__(self, data: pd.DataFrame, results: pd.DataFrame):
-        super().__init__(data, results)
+    """
+    A class for evaluating multilabel models.
+
+    Methods:
+        #TODO
+    """
+
+    def __init__(self, data: pd.DataFrame, results: pd.DataFrame, model_name: str) -> None:
+        """
+        Initialize the MultilabelScorer object.
+
+        Args:
+            data (pd.DataFrame): The input data for evaluation.
+            results (pd.DataFrame): The model predictions (output of prompter.generate).
+            model_name (str): The name of the model being evaluated for plot legends.
+        
+        Returns:
+            None
+        """
+        super().__init__(data, results, model_name)
 
     def evaluate(self) -> None:
         raise NotImplementedError
         #TODO: Implement for multilabel
 
-def compare_models_bootstrap(dict_scorers: dict, sample_size: int, n_samples=1000):
+def compare_models_bootstrap(dict_scorers: dict, sample_size: int, n_samples=1000) -> None:
+    """
+    Compares the performance of multiple models using bootstrap resampling. Plots the results.
+
+    Parameters:
+    - dict_scorers (dict): A dictionary containing the models and their corresponding scorers.
+    - sample_size (int): The size of each bootstrap sample.
+    - n_samples (int): The number of bootstrap samples to generate. Default is 1000.
+
+    Returns:
+        None
+    """
     # TODO: compatible multilabel?
     fig, axes = plt.subplots(nrows=2, ncols=3, figsize=(15, 8))
-    bootstrap_results = {model: scorer._bootstrap_results(sample_size=sample_size, n_samples=n_samples, model_name=model) for model, scorer in dict_scorers.items()}
+    # Bootstrap resampling for each model
+    bootstrap_results = {model: scorer._bootstrap_results(sample_size=sample_size, n_samples=n_samples) for model, scorer in dict_scorers.items()}
     x_labels = list(dict_scorers.keys())
     cmap = plt.get_cmap('Pastel2', len(dict_scorers))
     for i, metric in enumerate(METRICS):

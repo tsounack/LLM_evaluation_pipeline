@@ -24,24 +24,23 @@ class DataLoader:
         list_csv_files: Returns a list of CSV files in the specified path(s).
         get_standardized_dataframe: Returns a standardized dataframe with specified columns for context and target(s).
         check_symptoms_validity: Checks if the dataframe's symptoms are valid.
-
     """
 
     def __init__(self, path: Union[str, list[str]]) -> None:
-            """
-            Initialize the DataLoader class.
+        """
+        Initialize a DataLoader object.
 
-            Args:
-                path (Union[str, list[str]]): The path or list of paths to the CSV files or the folders containing them.
+        Args:
+            path (Union[str, list[str]]): The path or list of paths to the CSV files or the folders containing them.
 
-            Returns:
-                None
-
-            """
-            self.path = path
-            if isinstance(self.path, str):
-                self.path = [self.path]
-            self._check_existence()
+        Returns:
+            None
+        """
+        self.path = path
+        if isinstance(self.path, str):
+            self.path = [self.path]
+        # Check if the specified file(s) or folder(s) exist
+        self._check_existence()
 
     def list_csv_files(self) -> list[str]:
         """
@@ -49,7 +48,6 @@ class DataLoader:
 
         Returns:
             list[str]: A list of CSV file paths.
-
         """
         files = []
         for p in self.path:
@@ -77,25 +75,31 @@ class DataLoader:
             target_binary_col (str): The name of the column containing the binary target data. Defaults to "symptom_status_gs".
             target_multilabel_col (str): The name of the column containing the multilabel target data. Defaults to "symptom_detail_gs".
             keep_other_cols (bool): Whether to keep other columns in the dataframe. Defaults to True.
-            #TODO: update
+            allowed_symptoms (list[str]): The list of allowed symptoms. Defaults to ALLOWED_SYMPTOMS.
+
         Returns:
-            pd.DataFrame: The standardized dataframe with columns "Context" and 
-                "Target binary", "Target multilabel" (if specified). #TODO: update
+            pd.DataFrame: The standardized dataframe.
         """
         dataframe = self._get_dataframe()
         dataframe.rename(columns={context_col: "Context"}, inplace=True)
+        # Rename binary target column, convert it to boolean
         if target_binary_col in dataframe.columns:
             dataframe.rename(columns={target_binary_col: "Target binary"}, inplace=True)
             dataframe["Target binary"] = dataframe["Target binary"].replace({"Positive": True, "Negative": False}).astype(bool)
+        # Create multilabel target columns for each possible symptom, convert them to boolean
         if target_multilabel_col in dataframe.columns:
             for symptom in allowed_symptoms:
-                dataframe[f"Target {symptom}"] = dataframe[target_multilabel_col].apply(lambda x: symptom in str(x).split(";") if pd.notnull(x) else False).astype(bool)
+                dataframe[f"Target {symptom}"] = dataframe[target_multilabel_col].apply(
+                    lambda x: symptom in str(x).split(";") if pd.notnull(x) else False
+                    ).astype(bool)
+        # Keep only the specified columns if keep_other_cols is False
         if not keep_other_cols:
             cols_to_keep = ["Context"]
             if "Target binary" in dataframe.columns:
-                cols_to_keep.append("Target binary") # TODO: update
+                cols_to_keep.append("Target binary")
             if "Target multilabel" in dataframe.columns:
-                cols_to_keep.append("Target multilabel") # TODO: update
+                for symptom in allowed_symptoms:
+                    cols_to_keep.append(f"Target {symptom}")
             dataframe = dataframe[cols_to_keep]
         return dataframe
     
@@ -110,6 +114,8 @@ class DataLoader:
         Raises:
             ValueError: If the specified symptoms are not valid.
 
+        Returns:
+            None
         """
         dataframe = self._get_dataframe()
         symptoms = dataframe[symptoms_col].unique()
@@ -124,18 +130,17 @@ class DataLoader:
             print("Symptoms in dataframe are valid.")
 
     def _get_dataframe(self) -> pd.DataFrame:
-            """
-            Returns a pandas DataFrame by reading and concatenating the CSV files.
+        """
+        Returns a pandas DataFrame by reading and concatenating the CSV files.
 
-            Returns:
-                pd.DataFrame: A DataFrame containing the data from the CSV files.
-
-            """
-            files = self.list_csv_files()
-            dataframes = []
-            for file in files:
-                dataframes.append(pd.read_csv(file))
-            return pd.concat(dataframes, ignore_index=True)
+        Returns:
+            pd.DataFrame: A DataFrame containing the data from the CSV files.
+        """
+        files = self.list_csv_files()
+        dataframes = []
+        for file in files:
+            dataframes.append(pd.read_csv(file))
+        return pd.concat(dataframes, ignore_index=True)
     
     def _check_existence(self) -> None:
         """
@@ -143,7 +148,9 @@ class DataLoader:
 
         Raises:
             FileNotFoundError: If a specified file or folder does not exist.
-
+        
+        Returns:
+            None
         """
         for p in self.path:
             if not os.path.exists(p):

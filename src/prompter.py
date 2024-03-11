@@ -5,48 +5,27 @@ import os
 import glob
 import numpy as np
 import pandas as pd
+import threading
 from tools.model_structs import SymptomBinary, SymptomMultilabel
 from tqdm import tqdm
 from typing import Union
 from pathlib import Path
 
-def run_configurations(prompter_type: str, client: object, models: list[str], df: pd.DataFrame, prompt: str) -> dict:
-    """
-    Run configurations for prompter using the provided list of models.
-
-    Args:
-        prompter_type (str): The type of prompter. Valid values are 'binary' and 'multilabel'.
-        client (object): The client object.
-        models (list[str]): List of models.
-        df (pd.DataFrame): The DataFrame containing the context.
-        prompt (str): The prompt given to the model for output formatting.az
-
-    Returns:
-        dict: The results dictionary, using models as keys and results dataframes as values.
-    """
-    results = {}
-    for model in models:
-        prompter = prompter_factory(prompter_type, client, model)
-        generated_responses, nans = prompter.generate(df, prompt)
-        results[model] = generated_responses
-    return results
-
 def prompter_factory(prompter_type: str, client: object, model: str, temperature: float = 0) -> Union['Mistral', 'Llama']:
     """
-    Factory function to create prompter objects based on the given prompter_type.
+    Factory function to create prompter objects based on the given prompter_type and model name.
 
     Args:
         prompter_type (str): The type of prompter to create. Valid values are 'binary' and 'multilabel'.
         client(object): The client object.
         model (str): Link for the model, to be used by the client.
         temperature (float, optional): The temperature value for response generation. Defaults to 0.
-        #TODO: update
-
-    Returns:
-        Prompter: An instance of the appropriate prompter type.
 
     Raises:
-        ValueError: If an invalid prompter type is provided.
+        ValueError: If an invalid prompter model is provided.
+
+    Returns:
+        Prompter: An instance of the appropriate model type.
     """
     if "mistral" in model:
         return Mistral(prompter_type, client, model, temperature)
@@ -65,9 +44,8 @@ class Prompter:
         temperature (float): The temperature value for response generation.
 
     Methods:
+        generate: Generate responses for each context in the dataframe using the given prompt. Parallelized implementation.
         generate_single: Generates a response given a context and a prompt, with several attempts.
-        TODO: update
-
     """
 
     def __init__(self, client: object, model: str, temperature: float) -> None:
@@ -85,32 +63,54 @@ class Prompter:
         self.client = client
         self.model = model
         self.temperature = temperature
+        self.lock = threading.Lock()
+        self.num_tokens = 0
 
-    def generate(self, df: pd.DataFrame, prompt: str, max_attempts: int = 5, export_to_path: str = None) -> pd.DataFrame:
+    def generate(self, df: pd.DataFrame, prompt: str, max_attempts: int = 5) -> pd.DataFrame:
         """
-        Generate responses for each context in the dataframe using the given prompt in a parallelized manner.
+        Generate responses for each context in the dataframe using the given prompt. Parallelized implementation.
 
         Args:
             df (pandas.DataFrame): The dataframe containing the contexts.
             prompt (str): The prompt given to the model for output formatting.
             max_attempts (int, optional): The maximum number of attempts to generate a response. Defaults to 5.
 
-            #TODO: update
-
         Returns:
             pandas.DataFrame: A dataframe containing the generated responses. It has as many columns as the response structure.
         """
-        
         rows = df["Context"].tolist()
+        self.num_tokens = 0 # Reset the number of tokens
+        # Parallelize the generation of responses
         with concurrent.futures.ThreadPoolExecutor(max_workers=100) as executor:
-            responses = list(tqdm(executor.map(lambda c: self.generate_single(prompt, c, max_attempts), rows),
-                                  desc=f"{self.prompter_type} task using: {self.model}",
-                                  total=len(rows)))
+            responses = []
+            with tqdm(total=len(df), desc=f"{self.prompter_type} task using: {self.model} - Total tokens: {self.num_tokens:,.0f}") as progress_bar:
+                for output in executor.map(lambda c: self._unpack_generate_single(c, prompt, max_attempts), rows):
+                    responses.append(output)
+                    progress_bar.set_description(f"{self.prompter_type} task using: {self.model} - Total tokens: {self.num_tokens:,.0f}")
+                    progress_bar.update(1)
         df_responses = pd.DataFrame(responses)
-        df_responses = df_responses.add_prefix("Pred ")  # Add Pred  to every column name
-        if export_to_path:
-            self._save_to_csv(df, df_responses, export_to_path)
+        df_responses = df_responses.add_prefix("Pred ")  # Add Pred to every column name
         return df_responses
+    
+    def _unpack_generate_single(self, context: str, prompt: str, max_attempts: int = 5) -> dict:
+        """
+        Unpacks the output of the generate_single method.
+        Since the generate_single method returns a tuple, this method unpacks the tuple and returns
+            the dictionary, while keeping track of the number of tokens generated.
+
+        Args:
+            context (str): The context - Doctor / Patient conversation.
+            prompt (str): The prompt given to the model for output formatting.
+            max_attempts (int, optional): The maximum number of attempts to generate a response. Defaults to 5.
+        
+        Returns:
+            dict: The generated response as a dictionary.
+        """
+        output, num_tokens = self.generate_single(context, prompt, max_attempts)
+        # Wrapping in thread lock to avoid race condition when updating the number of tokens
+        with self.lock:
+            self.num_tokens += num_tokens
+        return output
 
     def generate_single(self, context: str, prompt: str, max_attempts: int = 5) -> dict:
         """
@@ -122,18 +122,21 @@ class Prompter:
             max_attempts (int, optional): The maximum number of attempts to generate a response. Defaults to 5.
 
         Returns:
-            dict: The generated response as a dictionary. #TODO: update
-
+            dict: The generated response as a dictionary.
         """
         attempt = 0
+        total_tokens = 0
+        # Try to generate a response with several attempts
         while attempt < max_attempts:
             try:
                 attempt += 1
-                structured_output, output = self._generate(context, prompt)
+                structured_output, output, num_tokens = self._generate(context, prompt)
+                total_tokens += num_tokens
                 self.symptom_struct(**structured_output) # Will go to exception if cannot unpack
                 if output:
                     structured_output["output"] = output
-                return structured_output
+                return structured_output, total_tokens
+            # exception might be an unstructured output or API rate limit
             except Exception as e:
                 if attempt < max_attempts:
                     sleep_time = 2 ** (attempt - 2)  # Exponential backoff formula
@@ -142,9 +145,22 @@ class Prompter:
                     res_dict = {"status": np.nan}
                     if output:
                         res_dict["output"] = output
-                    return res_dict #TODO: not compatible with multilabel
+                    return res_dict, total_tokens #TODO: not compatible with multilabel
     
     def _set_prompter_type(self, prompter_type: str) -> None:
+        """
+        Sets the prompter type and initializes the corresponding symptom structure and tool.
+        This is used by the Mistral class for function calling.
+
+        Args:
+            prompter_type (str): The type of prompter, either "binary" or "multilabel".
+
+        Raises:
+            ValueError: If an invalid prompter type is provided.
+
+        Returns:
+            None
+        """
         if prompter_type == "binary":
             self.symptom_struct = SymptomBinary
             self.prompter_type = "binary"
@@ -158,23 +174,29 @@ class Prompter:
             self.tool = json.load(file)
         self.tool_choice = {"type": "function", "function": {"name": f"symptom_{self.prompter_type}"}}
 
-    def _save_to_csv(self, df: pd.DataFrame, res: pd.DataFrame, export_to_path: str) -> None:
-        folder_path = export_to_path.rsplit('/', 1)[0]
-        if not os.path.exists(folder_path):
-            os.makedirs(folder_path)
-        csv_count = len(glob.glob(f"{folder_path}/*.csv"))
-        csv_name = f"results_{csv_count + 1}.csv"
-        export_path = os.path.join(folder_path, csv_name)
-        df_res = pd.concat([df, res], axis=1)
-        df_res.to_csv(export_path, index=False)
-
     
 class Mistral(Prompter):
+    """
+    A class representing the Mistral prompter.
+    """
+
     def __init__(self, prompter_type: str, client: object, model: str, temperature: float = 0) -> None:
+        """
+        Initialize the Prompter class for Mistral models.
+
+        Args:
+            prompter_type (str): The type of prompter.
+            client (object): The client object.
+            model (str): The model to use.
+            temperature (float, optional): The temperature value. Defaults to 0.
+
+        Returns:
+            None
+        """
         super().__init__(client, model, temperature)
         self._set_prompter_type(prompter_type)
     
-    def _generate(self, context: str, prompt: str) -> dict:
+    def _generate(self, context: str, prompt: str) -> tuple[dict, str, int]:
         """
         Generates a response given a context and a prompt.
 
@@ -184,7 +206,8 @@ class Mistral(Prompter):
 
         Returns:
             dict: The generated response as a dictionary.
-
+            str: The text output from the model.$
+            int: The number of tokens used to generate the response.
         """
         messages = [{"role": "system", "content": prompt},
                     {"role": "user", "content": context}]
@@ -196,16 +219,33 @@ class Mistral(Prompter):
             messages=messages
         )
         output=completion.choices[0].message.tool_calls[0].function.arguments
+        num_tokens = completion.usage.total_tokens
         output=json.loads(output)
-        return output, None
+        return output, None, num_tokens
 
 
 class Llama(Prompter):
+    """
+    A class representing the Llama prompter.
+    """
+
     def __init__(self, prompter_type: str, client: object, model: str, temperature: float = 0) -> None:
+        """
+        Initialize the Prompter class for Llama models.
+
+        Args:
+            prompter_type (str): The type of prompter.
+            client (object): The client object.
+            model (str): The model to use.
+            temperature (float, optional): The temperature value. Defaults to 0.
+
+        Returns:
+            None
+        """
         super().__init__(client, model, temperature)
         self._set_prompter_type(prompter_type) # for now only useful for labels
     
-    def _generate(self, context: str, prompt: str) -> dict:
+    def _generate(self, context: str, prompt: str) -> tuple[dict, str, int]:
         """
         Generates a response given a context and a prompt.
 
@@ -215,7 +255,8 @@ class Llama(Prompter):
 
         Returns:
             dict: The generated response as a dictionary.
-
+            str: The text output from the model.$
+            int: The number of tokens used to generate the response.
         """
         messages = [{"role": "system", "content": prompt},
                     {"role": "user", "content": context}]
@@ -225,6 +266,7 @@ class Llama(Prompter):
             messages=messages
         )
         output=completion.choices[0].message.content
+        num_tokens = completion.usage.total_tokens
         first_word = output.split()[0].rstrip(',.')
         if first_word == 'Yes':
             first_word_mapped = True
@@ -232,4 +274,4 @@ class Llama(Prompter):
             first_word_mapped = False
         else:
             first_word_mapped = np.nan
-        return {'status': first_word_mapped}, output
+        return {'status': first_word_mapped}, output, num_tokens

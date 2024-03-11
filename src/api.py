@@ -12,12 +12,11 @@ class API:
     Methods:
         __init__(api_key, base_url): Initializes an instance of the API class.
         get_openai(): Returns an instance of the OpenAI class.
-
     """
 
     def __init__(self, api_key: str, base_url: str) -> None:
             """
-            Initializes an instance of the API class.
+            Initializes an API object.
 
             Args:
                 api_key (str): The API key used for authentication.
