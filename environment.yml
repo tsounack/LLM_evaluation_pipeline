@@ -1,0 +1,10 @@
+name: llm-evaluation
+channels:
+  - conda-forge
+dependencies:
+  - openai
+  - pandas
+  - ipykernel
+  - anaconda::scikit-learn
+  - matplotlib
+  - conda-forge::python-dotenv
