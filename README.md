@@ -47,13 +47,14 @@ This pipeline aims to be user-friendly and modular. It does so by separating the
     and token usage tracking.
 
 - **Scorer**
+
     Scorer is used to assess the performance of prompter models. It works with binary and multilabel classification tasks, providing metrics and 
     plots for the user.
 
 
 ## Demonstration
 
-For demonstrating the pipeline's implementation, please refer to [this notebook](scripts/demo.ipynb).
+For a demonstration of the pipeline's usage, please refer to [this notebook](scripts/demo.ipynb).
 
 
 #TODO:
