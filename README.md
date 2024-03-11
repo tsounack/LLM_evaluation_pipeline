@@ -4,4 +4,10 @@ This is a repository for evaluating Large Language Models on detecting symptoms 
 
 ## Inital setup
 
-#TODO
+#TODO:
+- export env
+- write README
+- implement multilabel
+- rewrite demo
+- write report
+- test a few more queries
