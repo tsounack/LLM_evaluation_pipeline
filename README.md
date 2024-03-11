@@ -47,7 +47,7 @@ This pipeline aims to be user-friendly and modular. It does so by separating the
 
 ## Demonstration
 
-For demonstrating the pipeline's implementation, please refer to [this notebook](https://github.com/tsounack/LLM_evaluation_pipeline/scripts/demo.ipynb).
+For demonstrating the pipeline's implementation, please refer to [this notebook](scripts/demo.ipynb).
 
 
 #TODO:
