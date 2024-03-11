@@ -26,6 +26,10 @@ This is a repository for evaluating Large Language Models on detecting symptoms 
 
     Enter your Client API key in this file.
 
+3. Insert your data in the **/data** folder.
+
+    The data can be added in the form of csv files, or folders containing csv files.
+
 
 ## Features
 
