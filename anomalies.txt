@@ -1,1 +1,11 @@
 row 93: listed as positive, but no symptoms mentioned
+row 289: listed as positive, but no symptoms mentioned
+row 527: listed as positive, but no symptoms mentioned
+row 127: listed as positive, but no symptoms mentioned
+row 406: listed as positive, but no symptoms mentioned
+
+
+row 122: listed as negative, but asthma
+row 390: listed as negative, but sinus infections
+row 284: listed as negative, but patient has shoulder dislocation
+row 340: listed as negative, but patient cannot move hip flexor

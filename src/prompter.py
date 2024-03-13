@@ -88,7 +88,11 @@ class Prompter:
                     responses.append(output)
                     progress_bar.set_description(f"{self.prompter_type} task using: {self.model} - Total tokens: {self.num_tokens:,.0f}")
                     progress_bar.update(1)
+        # this handles nan values in the responses (unstructured output)
         df_responses = pd.DataFrame(responses)
+        # Move the column "output" to the last position. Otherwise if the first sample
+        # is unstructured, the rest of the columns will be shifted to the left.
+        df_responses["output"] = df_responses.pop("output")
         df_responses = df_responses.add_prefix("Pred ")  # Add Pred to every column name
         return df_responses
     
@@ -105,6 +109,8 @@ class Prompter:
         
         Returns:
             dict: The generated response as a dictionary.
+                For Binary: {"status": bool}
+                For Multilabel: {"symptom": bool for symptom in Symptoms}
         """
         output, num_tokens = self.generate_single(context, prompt, max_attempts)
         # Wrapping in thread lock to avoid race condition when updating the number of tokens
@@ -112,7 +118,7 @@ class Prompter:
             self.num_tokens += num_tokens
         return output
 
-    def generate_single(self, context: str, prompt: str, max_attempts: int = 5) -> dict:
+    def generate_single(self, context: str, prompt: str, max_attempts: int = 5) -> tuple[dict, int]:
         """
         Generates a response given a context and a prompt, with several attempts.
 
@@ -122,10 +128,14 @@ class Prompter:
             max_attempts (int, optional): The maximum number of attempts to generate a response. Defaults to 5.
 
         Returns:
-            dict: The generated response as a dictionary.
+            dict: The generated response as a dictionary. Column output is the model's text output.
+                For Binary: {"status": bool, "output": str}
+                For Multilabel: {"symptom": bool for symptom in Symptoms, "output": str}
+            total_tokens: The number of tokens used to generate the response.
         """
         attempt = 0
         total_tokens = 0
+        output = np.nan
         # Try to generate a response with several attempts
         while attempt < max_attempts:
             try:
@@ -133,19 +143,20 @@ class Prompter:
                 structured_output, output, num_tokens = self._generate(context, prompt)
                 total_tokens += num_tokens
                 self.symptom_struct(**structured_output) # Will go to exception if cannot unpack
-                if output:
-                    structured_output["output"] = output
+                # adding the model's text output
+                structured_output["output"] = output
                 return structured_output, total_tokens
             # exception might be an unstructured output or API rate limit
             except Exception as e:
+                # print(e)
                 if attempt < max_attempts:
                     sleep_time = 2 ** (attempt - 2)  # Exponential backoff formula
                     time.sleep(sleep_time)
                 else:
-                    res_dict = {"status": np.nan}
-                    if output:
-                        res_dict["output"] = output
-                    return res_dict, total_tokens #TODO: not compatible with multilabel
+                    # unstructured output. Pass the model's text output by itself
+                    # (the prediction columns will contain nan for the exception of 
+                    #  the output)
+                    return {"output": output}, total_tokens
     
     def _set_prompter_type(self, prompter_type: str) -> None:
         """
@@ -206,7 +217,9 @@ class Mistral(Prompter):
 
         Returns:
             dict: The generated response as a dictionary.
-            str: The text output from the model.$
+                For Binary: {"status": bool}
+                For Multilabel: {"symptom": bool for symptom in Symptoms}
+            str: The text output from the model - None for Mistral models since we are using function calling.
             int: The number of tokens used to generate the response.
         """
         messages = [{"role": "system", "content": prompt},
@@ -255,7 +268,9 @@ class Llama(Prompter):
 
         Returns:
             dict: The generated response as a dictionary.
-            str: The text output from the model.$
+                For Binary: {"status": bool}
+                For Multilabel: {"symptom": bool for symptom in Symptoms}
+            str: The text output from the model.
             int: The number of tokens used to generate the response.
         """
         messages = [{"role": "system", "content": prompt},

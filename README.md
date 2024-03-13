@@ -53,7 +53,7 @@ This pipeline aims to be user-friendly and modular. It does so by separating the
 - **Scorer**
 
     Scorer is used to assess the performance of prompter models. It works with binary and multilabel classification tasks, providing metrics and 
-    plots for the user.
+    plots for the user. To build confidence intervals without spending additional tokens, it uses bootstrapping.
 
 
 ## Demonstration

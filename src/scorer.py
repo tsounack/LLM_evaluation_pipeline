@@ -41,7 +41,9 @@ class Scorer:
         model_name (str): The name of the model being evaluated for plot legends.
 
     Methods:
+        get_error_dataframe: Returns a dataframe containing the rows with prediction errors.
         display_bootstrap_results: Displays the bootstrapped evaluation results.
+        display_length_distribution: Plots the distribution of context lengths for correct and incorrect predictions.
     """
 
     def __init__(self, data: pd.DataFrame, results: pd.DataFrame, model_name: str) -> None:
@@ -55,12 +57,13 @@ class Scorer:
         Returns:
             None
         """
+        # useful if data is a sample of the original data
+        data = data.reset_index(drop=True)
+        results = results.reset_index(drop=True)
         self.data = data
         self.results = results
         self.model_name = model_name
-        data = data.reset_index(drop=True)
-        results = results.reset_index(drop=True)
-        self.df_combined = pd.concat([self.data, self.results], axis=1)
+        self.df_combined = pd.concat([data, results], axis=1)
         
     def _bootstrap_results(self, sample_size: int, n_samples = 1000) -> dict:
         """
@@ -81,6 +84,15 @@ class Scorer:
             for metric in METRICS:
                 bootstrap_results[metric].append(evaluation_results[metric])
         return {metric: pd.Series(values) for metric, values in bootstrap_results.items()}
+    
+    def get_error_dataframe(self) -> pd.DataFrame:
+        """
+        Returns the dataframe containing the rows with prediction errors.
+
+        Returns:
+            pd.DataFrame: The dataframe containing the rows with prediction errors.
+        """
+        return self.df_combined[(self.df_combined[self.target_columns].values != self.df_combined[self.pred_columns].values).any(axis=1)]
     
     def display_bootstrap_results(self, sample_size: int, output_type: str = "text", n_samples = 1000) -> None:
         """
@@ -118,14 +130,42 @@ class Scorer:
             axes[1][1].set_position([0.55,0.125,0.228,0.343])
             plt.show()
 
+    def display_length_distribution(self) -> None:
+        """
+        Plots the distribution of context lengths for correct and incorrect predictions.
+
+        Returns:
+            None
+        """
+        incorrect = self.get_error_dataframe()
+        correct = self.df_combined.merge(incorrect, how='left', indicator=True).loc[lambda x: x['_merge'] == 'left_only']
+        correct = correct.drop(columns=['_merge'])
+        incorrect_nans = incorrect[incorrect[self.pred_columns].isna().any(axis=1)]
+        incorrect = incorrect[~incorrect[self.pred_columns].isna().any(axis=1)]
+        lengths_correct = correct["Context"].str.len()
+        lengths_incorrect = incorrect["Context"].str.len()
+        lengths_format_error = incorrect_nans["Context"].str.len()
+        plt.hist(lengths_correct, bins=30, alpha=0.5, label="Correct Prediction", color='skyblue', 
+                 edgecolor='black')
+        plt.hist(lengths_incorrect, bins=30, alpha=0.5, label="Incorrect Prediction", color='coral', 
+                 edgecolor='black')
+        if len(incorrect_nans):
+            plt.hist(lengths_format_error, bins=30, alpha=0.5, label="Format not respected", color='green', 
+                     edgecolor='black')
+        plt.axvline(x=np.mean(self.df_combined["Context"].str.len()), color='red', linestyle='-', label="Mean")
+        plt.xlabel("Length of Context")
+        plt.ylabel("Frequency")
+        plt.title(f"Distribution of Context Length: {self.model_name}")
+        plt.legend()
+        plt.show()
+
+
 class BinaryScorer(Scorer):
     """
     A class for evaluating binary predictions and calculating performance metrics.
 
     Methods:
-        get_error_dataframe: Returns a dataframe containing the rows with prediction errors.
         evaluate: Evaluates the binary predictions and returns a dictionary of performance metrics.
-        display_length_distribution: Displays a histogram of the distribution of context lengths.
     """
 
     def __init__(self, data: pd.DataFrame, results: pd.DataFrame, model_name: str) -> None:
@@ -141,15 +181,9 @@ class BinaryScorer(Scorer):
             None
         """
         super().__init__(data, results, model_name)
-
-    def get_error_dataframe(self) -> pd.DataFrame:
-        """
-        Returns the dataframe containing the rows with prediction errors.
-
-        Returns:
-            pd.DataFrame: The dataframe containing the rows with prediction errors.
-        """
-        return self.df_combined[self.df_combined["Target binary"] != self.df_combined[self.results.columns[0]]]
+        # Keep track of the columns for predictions and ground truth
+        self.pred_columns = ["Target binary"]
+        self.target_columns = ["Pred status"]
     
     def evaluate(self, data: pd.DataFrame) -> dict:
         """
@@ -180,40 +214,13 @@ class BinaryScorer(Scorer):
                 "confusion_matrix": confusion,
                 "Unstructured output ratio": unstructured_ratio}
     
-    def display_length_distribution(self) -> None:
-        """
-        Plots the distribution of context lengths for correct and incorrect predictions.
-
-        Returns:
-            None
-        """
-        correct = self.df_combined[self.df_combined["Target binary"] == self.df_combined["Pred status"]]
-        incorrect = self.df_combined[self.df_combined["Target binary"] != self.df_combined["Pred status"]]
-        incorrect_nans = incorrect[incorrect['Pred status'].isna()]
-        incorrect = incorrect[~incorrect['Pred status'].isna()]
-        lengths_correct = correct["Context"].str.len()
-        lengths_incorrect = incorrect["Context"].str.len()
-        lengths_format_error = incorrect_nans["Context"].str.len()
-        plt.hist(lengths_correct, bins=30, alpha=0.5, label="Correct Prediction", color='skyblue', 
-                 edgecolor='black')
-        plt.hist(lengths_incorrect, bins=30, alpha=0.5, label="Incorrect Prediction", color='coral', 
-                 edgecolor='black')
-        if len(incorrect_nans):
-            plt.hist(lengths_format_error, bins=30, alpha=0.5, label="Format not respected", color='green', 
-                     edgecolor='black')
-        plt.axvline(x=np.mean(self.df_combined["Context"].str.len()), color='red', linestyle='-', label="Mean")
-        plt.xlabel("Length of Context")
-        plt.ylabel("Frequency")
-        plt.title(f"Distribution of Context Length: {self.model_name}")
-        plt.legend()
-        plt.show()
 
 class MultilabelScorer(Scorer):
     """
     A class for evaluating multilabel models.
 
     Methods:
-        #TODO
+        evaluate: Evaluates the multilabel predictions and returns a dictionary of performance metrics.
     """
 
     def __init__(self, data: pd.DataFrame, results: pd.DataFrame, model_name: str) -> None:
@@ -229,10 +236,40 @@ class MultilabelScorer(Scorer):
             None
         """
         super().__init__(data, results, model_name)
+        # Keep track of the columns for predictions and ground truth
+        self.pred_columns = self.results.columns[:-1]
+        self.target_columns = self.data.columns[-len(self.pred_columns):]
 
-    def evaluate(self) -> None:
-        raise NotImplementedError
-        #TODO: Implement for multilabel
+    def evaluate(self, data: pd.DataFrame) -> dict:
+        """
+        Evaluate the performance of a model using the provided data, micro-averaging the results.
+
+        Args:
+            data (pd.DataFrame): The input data containing the true and predicted values.
+
+        Returns:
+            dict: A dictionary containing the micro-averaged evaluation metrics, including accuracy, 
+                precision, recall, F1 score, confusion matrix, and unstructured output ratio.
+        """
+        # NaN values are the unstructured outputs
+        df_not_nan = data[~data[self.pred_columns].isna().any(axis=1)]
+        df_nan = data[data[self.pred_columns].isna().any(axis=1)]
+        y_true = df_not_nan[self.target_columns].astype(bool)
+        y_pred = df_not_nan[self.pred_columns].astype(bool)
+        accuracy = accuracy_score(y_true, y_pred)
+        precision = precision_score(y_true, y_pred, average='micro', zero_division=0)
+        recall = recall_score(y_true, y_pred, average='micro', zero_division=0)
+        f1 = f1_score(y_true, y_pred, average='micro', zero_division=0)
+        confusion = multilabel_confusion_matrix(y_true, y_pred)
+        unstructured_ratio = len(df_nan) / len(data)
+        return {
+            "accuracy": accuracy,
+            "precision": precision,
+            "recall": recall,
+            "f1": f1,
+            "confusion_matrix": confusion,
+            "Unstructured output ratio": unstructured_ratio
+        }
 
 def compare_models_bootstrap(dict_scorers: dict, sample_size: int, n_samples=1000) -> None:
     """
@@ -246,7 +283,6 @@ def compare_models_bootstrap(dict_scorers: dict, sample_size: int, n_samples=100
     Returns:
         None
     """
-    # TODO: compatible multilabel?
     fig, axes = plt.subplots(nrows=2, ncols=3, figsize=(15, 8))
     # Bootstrap resampling for each model
     bootstrap_results = {model: scorer._bootstrap_results(sample_size=sample_size, n_samples=n_samples) for model, scorer in dict_scorers.items()}
@@ -267,8 +303,8 @@ def compare_models_bootstrap(dict_scorers: dict, sample_size: int, n_samples=100
         ax.set_title(metric.capitalize())
         ax.set_xlabel("Model")
         ax.set_ylabel("Value")
-        # we can set the y axis to start at 0.5 except for the formatting error ratio
-        if i < len(METRICS) - 1:
+        # we can set the y axis to start at 0.5 if all values are above 0.5
+        if all(y[i] - y_lower[i] > 0.5 for i in range(len(y_lower))):
             ax.set_ylim(0.5, 1)
     fig.suptitle(f"Bootstrapped Comparison Results (nb samples={n_samples})")
     plt.tight_layout()
