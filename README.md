@@ -59,11 +59,3 @@ This pipeline aims to be user-friendly and modular. It does so by separating the
 ## Demonstration
 
 For a demonstration of the pipeline's usage, please refer to [this notebook](scripts/demo.ipynb).
-
-
-#TODO:
-- write README
-- implement multilabel
-- rewrite demo
-- write report
-- test a few more queries
