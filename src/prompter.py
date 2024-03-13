@@ -81,6 +81,7 @@ class Prompter:
         rows = df["Context"].tolist()
         self.num_tokens = 0 # Reset the number of tokens
         # Parallelize the generation of responses
+        # potential optimization: don't start all workers at once to avoid reaching rate limit at beginning
         with concurrent.futures.ThreadPoolExecutor(max_workers=100) as executor:
             responses = []
             with tqdm(total=len(df), desc=f"{self.prompter_type} task using: {self.model} - Total tokens: {self.num_tokens:,.0f}") as progress_bar:
@@ -147,6 +148,7 @@ class Prompter:
                 structured_output["output"] = output
                 return structured_output, total_tokens
             # exception might be an unstructured output or API rate limit
+            # potential optimisation: formatting errors shouldn't have backoff
             except Exception as e:
                 # print(e)
                 if attempt < max_attempts:
@@ -282,11 +284,21 @@ class Llama(Prompter):
         )
         output=completion.choices[0].message.content
         num_tokens = completion.usage.total_tokens
-        first_word = output.split()[0].rstrip(',.')
-        if first_word == 'Yes':
-            first_word_mapped = True
-        elif first_word == 'No':
-            first_word_mapped = False
-        else:
-            first_word_mapped = np.nan
-        return {'status': first_word_mapped}, output, num_tokens
+
+        if self.prompter_type == "binary":
+            first_word = output.split()[0].rstrip(',.')
+            if first_word == 'Yes':
+                processed_output = True
+            elif first_word == 'No':
+                processed_output = False
+            else:
+                processed_output = np.nan
+            model_output = output
+
+        elif self.prompter_type == "multilabel":
+            processed_output = json.loads(output)
+            # some outputs will add symptoms that are not in the list
+            if len(processed_output) > 17:
+                processed_output = {k: processed_output[k] for k in list(processed_output)[:17]}
+            model_output = np.nan
+        return processed_output, model_output, num_tokens
