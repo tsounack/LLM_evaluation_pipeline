@@ -182,8 +182,8 @@ class BinaryScorer(Scorer):
         """
         super().__init__(data, results, model_name)
         # Keep track of the columns for predictions and ground truth
-        self.pred_columns = ["Target binary"]
-        self.target_columns = ["Pred status"]
+        self.pred_columns = [self.results.columns[0]]
+        self.target_columns = ["Target binary"]
     
     def evaluate(self, data: pd.DataFrame) -> dict:
         """
@@ -197,9 +197,9 @@ class BinaryScorer(Scorer):
                   recall, F1 score, confusion matrix, and unstructured output ratio.
         """
         # NaN values are the unstructured outputs
-        df_not_nan = data[~data['Pred status'].isna()]
-        df_nan = data[data['Pred status'].isna()]
-        y_true, y_pred = df_not_nan["Target binary"], df_not_nan["Pred status"]
+        df_not_nan = data[~data[self.pred_columns[0]].isna()]
+        df_nan = data[data[self.pred_columns[0]].isna()]
+        y_true, y_pred = df_not_nan[self.target_columns[0]], df_not_nan[self.pred_columns[0]]
         y_pred = y_pred.astype(bool)
         accuracy = accuracy_score(y_true, y_pred)
         precision = precision_score(y_true, y_pred)

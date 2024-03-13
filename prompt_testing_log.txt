@@ -154,104 +154,163 @@ Try 5:
         We can move forward with this prompt and focus on improving the precision, as the recall is already very high.
 
 
+Try 6:
+    --> While the prompts implemented chain of thought examples, they did not respect the model's expected output format.
+        We can try to implement the chain of thought examples while respecting the expected output format.
 
+    prompt = "You are a helpful model diagnosing diseases based on Doctor - Patient conversations. \
+            Given a conversation, you should determine whether the patient has symptoms or not. \
+            Some symptoms will be mentioned but will not apply to the patient. It is important \
+            that you only consider symptoms that are experienced by the patient. \
+            An example of a patient mentioning a symptom that does not apply to them is: \
+            'P: My daughter is having fevers and barely sleeps'. Your answer should be \
+            'No'. This is due to the fact that the patient is not the one experiencing the symptoms. \
+            It is also important that you only consider explicit mentions of symptoms. \
+            An example of a patient not explicitly mentioning a symptom is: \
+            'D: You need to get an MRI as soon as possible. P: OK. D: Alright.' \
+            Your answer should be: 'No'. This is because the patient needs to get an MRI which \
+            implies that they are experiencing some symptoms, they do not explicitly mention any.'\
+            Are any medical symptoms mentioned in the transcript?"
 
+    Results:
+        accuracy: 0.7973 (0.7625-0.8318 95% CI)
+        precision: 0.7775 (0.7413-0.815 95% CI)
+        recall: 0.9946 (0.9864-1.0 95% CI)
+        f1: 0.8726 (0.8476-0.8961 95% CI)
+        Unstructured output ratio: 0.0109 (0.0036-0.0218 95% CI)
+        Total tokens: 319,653
 
+    Analysis:
+        The performance is similar to the previous try. The unstructured output ratio is higher, but still low.
+        We can aim to simplify the prompt by keeping the examples, but removing the chain of though examples.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-Try 3:
-    prompt = "You are a model diagnosing diseases based on Doctor - Patient conversations. \
-              Given a conversation, you should determine whether the patient has symptoms or not. \
-              Your answer should not provide any context, it should be a simple Yes or No.\
-              For instance, given the following conversation: \
-              D: Are you experiencing any fatigue?\n\
-              P: I have a headache every time i see a cat and i hear voices that are not there.\n\
-              Your answer should be: 'Yes'.\
-              Are any medical symptoms mentioned in the transcript?"
+    
+Try 7:
+    prompt = "You are a helpful model diagnosing diseases based on Doctor - Patient conversations. \
+            Given a conversation, you should determine whether the patient has symptoms or not. \
+            Some symptoms will be mentioned but will not apply to the patient. It is important \
+            that you only consider symptoms that are experienced by the patient. \
+            An example of a patient mentioning a symptom that does not apply to them is: \
+            'P: My daughter is having fevers and barely sleeps'. Your answer should be \
+            'No'. It is also important that you only consider explicit mentions of symptoms. \
+            An example of a patient not explicitly mentioning a symptom is: \
+            'D: You need to get an MRI as soon as possible. P: OK. D: Alright.' \
+            Your answer should be: 'No'. \
+            Are any medical symptoms mentioned in the transcript?"
     
     Results:
-        accuracy: 0.693 (0.6563-0.7327 95% CI)
-        precision: 0.6924 (0.6551-0.7318 95% CI)
-        recall: 1.0 (1.0-1.0 95% CI)
-        f1: 0.8181 (0.7916-0.8451 95% CI)
-        Unstructured output ratio: 0.0 (0.0-0.0 95% CI)
+        accuracy: 0.8366 (0.8055-0.8668 95% CI)
+        precision: 0.8152 (0.7797-0.8502 95% CI)
+        recall: 0.9893 (0.9786-0.9974 95% CI)
+        f1: 0.8937 (0.8708-0.9156 95% CI)
+        Unstructured output ratio: 0.0074 (0.0018-0.0164 95% CI)
+        Total tokens: 281,995
 
     Analysis:
-        Compared to the previous try, we now have a perfect recall, meaning that the model is not missing any symptoms.
-        The other metrics do not show a statistical difference from the previous try. However, we can note that although
-            we are providing a longer prompt, the model is able to retain the information regarding the output format
-            and only provides structured outputs.
-        We can move forward with providing a chain-of-thought example in the prompt.
+        Simplifying the prompt helped improve the performance. This is the best performing prompt so far.
+        We can try to bias the model in reducing false positives by explicitly mentioning that it should
+            be conservative in its predictions.
 
 
-Try 4:
-    prompt = "You are a model diagnosing diseases based on Doctor - Patient conversations. \
-              Given a conversation, you should determine whether the patient has symptoms or not. \
-              Your answer should not provide any context, it should be a simple Yes or No.\
-              For instance, given the following conversation: \
-              D: Are you experiencing any fatigue?\n\
-              P: I have a headache every time i see a cat and i hear voices that are not there.\n\
-              Your answer should be: 'Yes', since the patient mentions they are experiencing a headache.\
-              Are any medical symptoms mentioned in the transcript?"
+Try 8:
+    prompt = "You are a helpful model diagnosing diseases based on Doctor - Patient conversations. \
+            Given a conversation, you should determine whether the patient has symptoms or not. \
+            Some symptoms will be mentioned but will not apply to the patient. It is important \
+            that you only consider symptoms that are experienced by the patient. \
+            An example of a patient mentioning a symptom that does not apply to them is: \
+            'P: My daughter is having fevers and barely sleeps'. Your answer should be \
+            'No'. It is also important that you only consider explicit mentions of symptoms. \
+            An example of a patient not explicitly mentioning a symptom is: \
+            'D: You need to get an MRI as soon as possible. P: OK. D: Alright.' \
+            Your answer should be: 'No'. \
+            You should refrain from answering yes if you are not certain. If you are not \
+            certain, your answer should be: 'No'. \
+            Are any medical symptoms mentioned in the transcript?"
 
     Results:
-        accuracy: 0.6904 (0.6509-0.7309 95% CI)
-        precision: 0.6904 (0.6509-0.7309 95% CI)
-        recall: 1.0 (1.0-1.0 95% CI)
-        f1: 0.8167 (0.7885-0.8445 95% CI)
-        Unstructured output ratio: 0.0 (0.0-0.0 95% CI)
+        accuracy: 0.864 (0.8353-0.892 95% CI)
+        precision: 0.8519 (0.8184-0.8834 95% CI)
+        recall: 0.9805 (0.9638-0.9922 95% CI)
+        f1: 0.9116 (0.8909-0.9307 95% CI)
+        Unstructured output ratio: 0.0817 (0.06-0.1055 95% CI)
+        Total tokens: 392,771
 
     Analysis:
-        Implementing a chain-of-thought example did not improve the performance. The metrics are similar to the previous try.
-        Since the recall is maximum, we can focus on improving the precision. We can do so by performing error interrogation
-            to understand the types of error.
+        The overall performance has increased. Accuracy and Precision increased by about 3 and 4 points respectively.
+        Interestingly, while we ask the model to be more conservative (which helps with the false positives), the number
+            of false negatives has not increased.
+        In order to help the model define the scope of what a medical symptom is, we can pass it the list of symptoms
+            from the multilabel classification task. This will help the model understand what it should be looking for.
 
-        Ex1: Symptoms relative to other people
-            Context: "P: Uhm, I know my grandfather had lung cancer, but he used to smoke. D: OK, I see. How old was he? [...]"
-            Output: "Yes, the patient mentions that their grandfather had lung cancer, which is a medical symptom. [...]"
-            --> To fix this, we could introduce such an example in the prompt and explictly tell the model that it should not
-                consider symptoms that are not related to the patient.
 
-        Ex2: Hallucinations
-            Context: "D: So just to make sure that we're being comprehensive. P: OK. That sounds good. Thank you so much. D: Thank you."  
-            Output: "Yes, the patient mentions experiencing a headache, which is a medical symptom. Therefore, the answer is Yes."
-            --> Interestingly, the false diagnosis in this case is often a headache, which is most likely due to the fact that we are
-                introducing this example in the prompt. This might also be why short prompts perform worse: the model is more likely to
-                focus on the example. We can try to make it more explicit that this is an example in the prompt.
+Try 9:
+    prompt = "You are a helpful model diagnosing diseases based on Doctor - Patient conversations. \
+            Given a conversation, you should determine whether the patient has symptoms or not. \
+            Some symptoms will be mentioned but will not apply to the patient. It is important \
+            that you only consider symptoms that are experienced by the patient. \
+            An example of a patient mentioning a symptom that does not apply to them is: \
+            'P: My daughter is having fevers and barely sleeps'. Your answer should be \
+            'No'. It is also important that you only consider explicit mentions of symptoms. \
+            An example of a patient not explicitly mentioning a symptom is: \
+            'D: You need to get an MRI as soon as possible. P: OK. D: Alright.' \
+            Your answer should be: 'No'. \
+            You should refrain from answering yes if you are not certain. If you are not \
+            certain, your answer should be: 'No'. \
+            Here is the list of possible symptoms: \
+            ['anxiety', 'concentration problems', 'constipation', 'cough', \
+                    'diarrhea', 'fatigue', 'fever', 'headache', 'nausea', \
+                    'numbness and tingling', 'pain', 'poor appetite', 'rash', \
+                    'shortness of breath', 'trouble drinking fluids', 'vomiting', 'other'] \
+            Are any medical symptoms mentioned in the transcript?"
 
-        Ex3: Symptoms could be inferred from the context, but not explicit
-            Context: "D: Yeah, and no worries, and then we'll also do like a full physical examination. P: That sounds great. D: Alright."
-            Model Output: "Yes, the patient mentions "a full physical examination" which implies that they are experiencing some symptoms [...]"
-            --> Similarly, this can be fixed by providing an example in the prompt and explicitly telling the model that it should
-                only consider explicit mentions of symptoms. We could pass the list of allowed symptoms in the prompt.
-            
+    Results:
+        accuracy: 0.9151 (0.8865-0.9407 95% CI)
+        precision: 0.9142 (0.8811-0.9434 95% CI)
+        recall: 0.9784 (0.9606-0.9931 95% CI)
+        f1: 0.9451 (0.9255-0.962 95% CI)
+        Unstructured output ratio: 0.3145 (0.2764-0.3545 95% CI)
+        Total tokens: 805,758
 
-TODO: try two shot? Try making the query simpler. Try getting rid of false negatives by passing an example where there is a symptom but it does not concern the patient.
+    Results:
+        There is a significant increase for all the metrics (apart for the recall which was already high).
+        However, this comes at the expense of a much higher unstructured output ratio.
+        We can iterate on this prompt to reduce the unstructured output ratio.
+        Adding the list at the end most likely offsets the attention from the examples to the set of
+            possible symptoms. We can try to add the list at the beginning of the prompt instead, since
+            order matters in prompts.
+
+
+Try 10:
+    prompt = "You are a helpful model diagnosing diseases based on Doctor - Patient conversations. \
+            Given a conversation, you should determine whether the patient has symptoms or not. \
+            Here is the list of possible symptoms: \
+            ['anxiety', 'concentration problems', 'constipation', 'cough', \
+                    'diarrhea', 'fatigue', 'fever', 'headache', 'nausea', \
+                    'numbness and tingling', 'pain', 'poor appetite', 'rash', \
+                    'shortness of breath', 'trouble drinking fluids', 'vomiting', 'other'] \
+            Some symptoms will be mentioned but will not apply to the patient. It is important \
+            that you only consider symptoms that are experienced by the patient. \
+            An example of a patient mentioning a symptom that does not apply to them is: \
+            'P: My daughter is having fevers and barely sleeps'. Your answer should be \
+            'No'. It is also important that you only consider explicit mentions of symptoms. \
+            An example of a patient not explicitly mentioning a symptom is: \
+            'D: You need to get an MRI as soon as possible. P: OK. D: Alright.' \
+            Your answer should be: 'No'. \
+            You should refrain from answering yes if you are not certain. If you are not \
+            certain, your answer should be: 'No'. \
+            Are any medical symptoms mentioned in the transcript?"
+
+    Results:
+        accuracy: 0.8736 (0.8434-0.903 95% CI)
+        precision: 0.8647 (0.8298-0.8992 95% CI)
+        recall: 0.9825 (0.9665-0.9943 95% CI)
+        f1: 0.9198 (0.8986-0.9397 95% CI)
+        Unstructured output ratio: 0.1678 (0.1382-0.1964 95% CI)
+        Total tokens: 593,737
+
+    Analysis:
+        Interestingly, moving the list of symptoms to the beginning of the prompt has reduced the
+            unstructured output ratio and the performance. After trying several approaches, it seems
+            difficult to keep the performance high while reducing the unstructured output ratio.
+        We therefore select prompt 8 as the best performing prompt, as it has the best performance
+            while keeping the unstructured output ratio low.

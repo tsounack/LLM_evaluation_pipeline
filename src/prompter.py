@@ -277,7 +277,7 @@ class Llama(Prompter):
         """
         messages = [{"role": "system", "content": prompt},
                     {"role": "user", "content": context}]
-        completion =self.client.chat.completions.create(
+        completion = self.client.chat.completions.create(
             model=self.model,
             temperature=self.temperature,
             messages=messages
@@ -293,6 +293,7 @@ class Llama(Prompter):
                 processed_output = False
             else:
                 processed_output = np.nan
+            processed_output = {"status": processed_output}
             model_output = output
 
         elif self.prompter_type == "multilabel":

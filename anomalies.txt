@@ -9,3 +9,4 @@ row 122: listed as negative, but asthma
 row 390: listed as negative, but sinus infections
 row 284: listed as negative, but patient has shoulder dislocation
 row 340: listed as negative, but patient cannot move hip flexor
+row 187: listed as negative, but doctor explicitly mentions that patient has symptoms
